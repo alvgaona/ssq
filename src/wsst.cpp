@@ -13,7 +13,7 @@ Eigen::MatrixXd compute_wsst_phase_transform(const CwtResult& cwt, double sample
     // Compute instantaneous frequency from CWT
     //
     // For the wavelet synchrosqueezing transform, the instantaneous frequency is:
-    // omega(a,b) = -Im(W'_psi(a,b) / W_psi(a,b)) / (2*pi)
+    // omega(a,b) = Im(W'_psi(a,b) / W_psi(a,b)) / (2*pi)
     //
     // where W_psi is the CWT and W'_psi is the CWT with derivative wavelet
     // Since W'_psi is computed using physical angular frequency (rad/s) in the derivative,
@@ -23,31 +23,27 @@ Eigen::MatrixXd compute_wsst_phase_transform(const CwtResult& cwt, double sample
     const Eigen::Index num_scales = cwt.cwt.rows();
     const Eigen::Index num_times = cwt.cwt.cols();
 
-    Eigen::MatrixXd omega(num_scales, num_times);
+    // Compute magnitudes (vectorized)
+    Eigen::MatrixXd mag = cwt.cwt.cwiseAbs();
+    Eigen::MatrixXd mag_sq = mag.array().square();
 
+    // Compute ratio = W_d * conj(W) / |W|^2 (vectorized)
+    // Im(W_d * conj(W)) = Im(W_d) * Re(W) - Re(W_d) * Im(W)
+    Eigen::MatrixXd imag_ratio =
+        (cwt.cwt_d.imag().cwiseProduct(cwt.cwt.real()) - cwt.cwt_d.real().cwiseProduct(cwt.cwt.imag()))
+            .cwiseQuotient(mag_sq.cwiseMax(threshold * threshold));
+
+    // Initialize omega with scale frequencies (broadcast)
+    Eigen::MatrixXd omega = cwt.frequencies.replicate(1, num_times);
+
+    // Compute instantaneous frequency
+    Eigen::MatrixXd inst_freq = imag_ratio / TWO_PI;
+
+    // Apply threshold mask and clamp to positive frequencies
     for (Eigen::Index s = 0; s < num_scales; ++s) {
-        double scale_freq = cwt.frequencies(s);
-
         for (Eigen::Index t = 0; t < num_times; ++t) {
-            std::complex<double> w = cwt.cwt(s, t);
-            std::complex<double> w_d = cwt.cwt_d(s, t);
-
-            double mag = std::abs(w);
-
-            if (mag > threshold) {
-                // omega = Im(W'_psi / W_psi) / (2*pi)
-                // W'_psi already contains the physical frequency factor from the derivative
-                // For analytic signal: W' = i*omega*W, so Im(W'/W) = omega
-                std::complex<double> ratio = w_d * std::conj(w) / (mag * mag);
-                double inst_freq = std::imag(ratio) / TWO_PI;
-
-                // Clamp to positive frequencies
-                inst_freq = std::max(0.0, inst_freq);
-
-                omega(s, t) = inst_freq;
-            } else {
-                // When magnitude is too small, use the scale's center frequency
-                omega(s, t) = scale_freq;
+            if (mag(s, t) > threshold) {
+                omega(s, t) = std::max(0.0, inst_freq(s, t));
             }
         }
     }

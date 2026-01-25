@@ -48,14 +48,18 @@ CwtResult Cwt::compute(const Eigen::VectorXd& signal, double sample_rate, const 
 
     // Convert to full complex spectrum for easier manipulation
     Eigen::VectorXcd signal_spectrum(n);
+
+    // Copy positive frequencies from FFTW output
     for (Eigen::Index k = 0; k <= n / 2; ++k) {
         signal_spectrum(k) =
             std::complex<double>(signal_fft[static_cast<size_t>(k)][0], signal_fft[static_cast<size_t>(k)][1]);
     }
-    // Negative frequencies (conjugate symmetry for real signal)
-    for (Eigen::Index k = n / 2 + 1; k < n; ++k) {
-        signal_spectrum(k) = std::conj(signal_spectrum(n - k));
-    }
+
+    // Negative frequencies via conjugate symmetry (vectorized)
+    // signal_spectrum[n/2+1 : n-1] = conj(signal_spectrum[n/2-1 : 1])
+    Eigen::Index neg_start = n / 2 + 1;
+    Eigen::Index neg_count = n - neg_start;
+    signal_spectrum.segment(neg_start, neg_count) = signal_spectrum.segment(1, neg_count).reverse().conjugate();
 
     // Allocate arrays for inverse FFT
     FftwArray<fftw_complex> product(static_cast<size_t>(n));
@@ -64,6 +68,11 @@ CwtResult Cwt::compute(const Eigen::VectorXd& signal, double sample_rate, const 
     // Create inverse FFT plan (complex-to-complex)
     FftwPlan inverse_plan =
         FftwManager::instance().create_dft_plan(static_cast<int>(n), product.get(), cwt_out.get(), FFTW_BACKWARD);
+
+    // Temporary vectors for FFTW interop
+    Eigen::VectorXcd product_vec(n);
+    Eigen::VectorXcd cwt_out_vec(n);
+    const double norm = 1.0 / static_cast<double>(n);
 
     // Process each scale
     for (Eigen::Index s = 0; s < num_scales; ++s) {
@@ -74,33 +83,26 @@ CwtResult Cwt::compute(const Eigen::VectorXd& signal, double sample_rate, const 
         Eigen::VectorXcd psi_d = morlet_wavelet_freq_derivative(n, scale, dt, omega0_);
 
         // Compute CWT for this scale: IFFT(signal_fft * conj(psi_fft))
-        for (Eigen::Index k = 0; k < n; ++k) {
-            std::complex<double> val = signal_spectrum(k) * std::conj(psi(k));
-            product[static_cast<size_t>(k)][0] = val.real();
-            product[static_cast<size_t>(k)][1] = val.imag();
-        }
+        // Vectorized element-wise multiplication
+        product_vec = signal_spectrum.cwiseProduct(psi.conjugate());
+
+        // Copy to FFTW array
+        std::memcpy(product.get(), product_vec.data(), static_cast<size_t>(n) * sizeof(fftw_complex));
 
         FftwManager::instance().execute(inverse_plan);
 
-        // Copy result and normalize
-        for (Eigen::Index t = 0; t < n; ++t) {
-            result.cwt(s, t) = std::complex<double>(cwt_out[static_cast<size_t>(t)][0] / static_cast<double>(n),
-                                                    cwt_out[static_cast<size_t>(t)][1] / static_cast<double>(n));
-        }
+        // Copy from FFTW and normalize (vectorized)
+        std::memcpy(cwt_out_vec.data(), cwt_out.get(), static_cast<size_t>(n) * sizeof(fftw_complex));
+        result.cwt.row(s) = cwt_out_vec.transpose() * norm;
 
-        // Compute CWT with derivative wavelet
-        for (Eigen::Index k = 0; k < n; ++k) {
-            std::complex<double> val = signal_spectrum(k) * std::conj(psi_d(k));
-            product[static_cast<size_t>(k)][0] = val.real();
-            product[static_cast<size_t>(k)][1] = val.imag();
-        }
+        // Compute CWT with derivative wavelet (vectorized)
+        product_vec = signal_spectrum.cwiseProduct(psi_d.conjugate());
+        std::memcpy(product.get(), product_vec.data(), static_cast<size_t>(n) * sizeof(fftw_complex));
 
         FftwManager::instance().execute(inverse_plan);
 
-        for (Eigen::Index t = 0; t < n; ++t) {
-            result.cwt_d(s, t) = std::complex<double>(cwt_out[static_cast<size_t>(t)][0] / static_cast<double>(n),
-                                                      cwt_out[static_cast<size_t>(t)][1] / static_cast<double>(n));
-        }
+        std::memcpy(cwt_out_vec.data(), cwt_out.get(), static_cast<size_t>(n) * sizeof(fftw_complex));
+        result.cwt_d.row(s) = cwt_out_vec.transpose() * norm;
     }
 
     return result;

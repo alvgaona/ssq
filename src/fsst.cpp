@@ -1,5 +1,6 @@
 #include "ssq/fsst.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace ssq {
@@ -19,31 +20,30 @@ Eigen::MatrixXd compute_phase_transform(const StftResult& stft, double sample_ra
 
     const Eigen::Index num_freqs = stft.stft.rows();
     const Eigen::Index num_times = stft.stft.cols();
+    const double nyquist = sample_rate / 2.0;
 
-    Eigen::MatrixXd omega(num_freqs, num_times);
+    // Compute magnitudes (vectorized)
+    Eigen::MatrixXd mag = stft.stft.cwiseAbs();
+    Eigen::MatrixXd mag_sq = mag.array().square();
 
+    // Compute ratio = V_dg * conj(V_g) / |V_g|^2 (vectorized)
+    // Im(V_dg * conj(V_g)) = Im(V_dg) * Re(V_g) - Re(V_dg) * Im(V_g)
+    Eigen::MatrixXd imag_ratio =
+        (stft.stft_dg.imag().cwiseProduct(stft.stft.real()) - stft.stft_dg.real().cwiseProduct(stft.stft.imag()))
+            .cwiseQuotient(mag_sq.cwiseMax(threshold * threshold));
+
+    // Initialize omega with bin frequencies (broadcast)
+    Eigen::MatrixXd omega = stft.frequencies.replicate(1, num_times);
+
+    // Compute instantaneous frequency where magnitude is above threshold
+    // inst_freq = bin_freq - Im(ratio) / (2*pi)
+    Eigen::MatrixXd inst_freq = omega - imag_ratio / TWO_PI;
+
+    // Apply threshold mask and clamp
     for (Eigen::Index k = 0; k < num_freqs; ++k) {
-        double bin_freq = stft.frequencies(k);
-
         for (Eigen::Index t = 0; t < num_times; ++t) {
-            std::complex<double> vg = stft.stft(k, t);
-            std::complex<double> vdg = stft.stft_dg(k, t);
-
-            double mag = std::abs(vg);
-
-            if (mag > threshold) {
-                // omega = eta - Im(V_dg / V_g) / (2*pi)
-                // V_dg / V_g = (V_dg * conj(V_g)) / |V_g|^2
-                std::complex<double> ratio = vdg * std::conj(vg) / (mag * mag);
-                double inst_freq = bin_freq - std::imag(ratio) / TWO_PI;
-
-                // Clamp to valid frequency range
-                inst_freq = std::max(0.0, std::min(inst_freq, sample_rate / 2.0));
-
-                omega(k, t) = inst_freq;
-            } else {
-                // When magnitude is too small, use bin frequency
-                omega(k, t) = bin_freq;
+            if (mag(k, t) > threshold) {
+                omega(k, t) = std::clamp(inst_freq(k, t), 0.0, nyquist);
             }
         }
     }
