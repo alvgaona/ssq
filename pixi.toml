@@ -1,0 +1,27 @@
+[workspace]
+authors = ["Alvaro Gaona <alvgaona@gmail.com>"]
+channels = ["conda-forge"]
+name = "ssq"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[dependencies]
+cmake = ">=3.18"
+fftw = ">=3.3"
+eigen = ">=3.4"
+pybind11 = ">=2.11"
+gtest = ">=1.14"
+pkg-config = ">=0.29"
+numpy = ">=1.24"
+python = ">=3.11"
+scipy = ">=1.11"
+h5py = ">=3.9"
+
+[tasks]
+configure = "cmake -B build -DSSQ_BUILD_TESTS=ON"
+build = { cmd = "cmake --build build", depends-on = ["configure"] }
+test = { cmd = "ctest --test-dir build --output-on-failure", depends-on = ["build"] }
+install = { cmd = "cmake --install build", depends-on = ["build"] }
+clean = "rm -rf build"
+validate-fsst = { cmd = "python scripts/compare_with_matlab.py", depends-on = ["install"] }
+validate-wsst = { cmd = "python scripts/compare_wsst_with_matlab.py", depends-on = ["install"] }
