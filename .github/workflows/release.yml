@@ -36,6 +36,7 @@ jobs:
         with:
           recipe-path: recipe/recipe.yaml
           upload-artifact: true
+          build-args: --package-format tar-bz2
 
   release:
     needs: build
