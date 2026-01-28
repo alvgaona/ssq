@@ -41,7 +41,7 @@ jobs:
         with:
           recipe-path: recipe/recipe.yaml
           upload-artifact: true
-          build-args: --package-format tar-bz2
+          build-args: --package-format tar-bz2 --variant-config recipe/variants.yaml
 
   release:
     needs: build
