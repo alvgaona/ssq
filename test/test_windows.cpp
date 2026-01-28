@@ -2,8 +2,6 @@
 
 #include "ssq/windows.hpp"
 
-#include <vector>
-
 class WindowsTest : public ::testing::Test {
 protected:
     const Eigen::Index default_length = 128;
@@ -153,16 +151,14 @@ TEST_F(WindowsTest, EdgeCaseLengthZero) {
 
 TEST_F(WindowsTest, AllPositiveValues) {
     // All windows should have non-negative values
-    std::vector<Eigen::VectorXd> windows = {
-        ssq::windows::kaiser(default_length),
-        ssq::windows::hamming(default_length),
-        ssq::windows::hann(default_length),
-        ssq::windows::gaussian(default_length)
-    };
-
-    for (const auto& w : windows) {
+    auto check_positive = [](const Eigen::VectorXd& w) {
         for (Eigen::Index i = 0; i < w.size(); ++i) {
             EXPECT_GE(w(i), 0.0);
         }
-    }
+    };
+
+    check_positive(ssq::windows::kaiser(default_length));
+    check_positive(ssq::windows::hamming(default_length));
+    check_positive(ssq::windows::hann(default_length));
+    check_positive(ssq::windows::gaussian(default_length));
 }
