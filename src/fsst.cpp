@@ -39,9 +39,9 @@ Eigen::MatrixXd compute_phase_transform(const StftResult& stft, double sample_ra
     // inst_freq = bin_freq - Im(ratio) / (2*pi)
     Eigen::MatrixXd inst_freq = omega - imag_ratio / TWO_PI;
 
-    // Apply threshold mask and clamp
-    for (Eigen::Index k = 0; k < num_freqs; ++k) {
-        for (Eigen::Index t = 0; t < num_times; ++t) {
+    // Apply threshold mask and clamp (column-first for cache efficiency)
+    for (Eigen::Index t = 0; t < num_times; ++t) {
+        for (Eigen::Index k = 0; k < num_freqs; ++k) {
             if (mag(k, t) > threshold) {
                 omega(k, t) = std::clamp(inst_freq(k, t), 0.0, nyquist);
             }
@@ -70,24 +70,17 @@ Eigen::MatrixXcd synchrosqueeze(const Eigen::MatrixXcd& stft, const Eigen::Matri
     double df = (num_freqs > 1) ? (frequencies(num_freqs - 1) - frequencies(0)) / static_cast<double>(num_freqs - 1)
                                 : 1.0;
 
-    for (Eigen::Index k = 0; k < num_freqs; ++k) {
-        for (Eigen::Index t = 0; t < num_times; ++t) {
+    // Column-first iteration for cache efficiency on column-major matrices
+    for (Eigen::Index t = 0; t < num_times; ++t) {
+        for (Eigen::Index k = 0; k < num_freqs; ++k) {
             std::complex<double> val = stft(k, t);
             double mag = std::abs(val);
 
             if (mag > threshold) {
-                // Find the target frequency bin
                 double target_freq = omega(k, t);
-
-                // Linear interpolation to find nearest bin
-                // k' = (omega - f[0]) / df
                 double k_prime = (target_freq - frequencies(0)) / df;
-
-                // Round to nearest bin and clamp
                 Eigen::Index target_bin = static_cast<Eigen::Index>(std::round(k_prime));
                 target_bin = std::max(Eigen::Index{0}, std::min(target_bin, num_freqs - 1));
-
-                // Accumulate energy at target bin
                 result(target_bin, t) += val;
             }
         }

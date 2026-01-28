@@ -60,9 +60,9 @@ Eigen::MatrixXd compute_wsst_phase_transform(const CwtResult& cwt, double sample
     // Compute instantaneous frequency
     Eigen::MatrixXd inst_freq = imag_ratio / TWO_PI;
 
-    // Apply threshold mask and clamp to positive frequencies
-    for (Eigen::Index s = 0; s < num_scales; ++s) {
-        for (Eigen::Index t = 0; t < num_times; ++t) {
+    // Apply threshold mask and clamp (column-first for cache efficiency)
+    for (Eigen::Index t = 0; t < num_times; ++t) {
+        for (Eigen::Index s = 0; s < num_scales; ++s) {
             if (mag(s, t) > threshold) {
                 omega(s, t) = std::max(0.0, inst_freq(s, t));
             }
@@ -87,8 +87,9 @@ Eigen::MatrixXcd wsst_synchrosqueeze(const Eigen::MatrixXcd& cwt, const Eigen::M
 
     Eigen::MatrixXcd result = Eigen::MatrixXcd::Zero(num_freqs, num_times);
 
-    for (Eigen::Index s = 0; s < num_scales; ++s) {
-        for (Eigen::Index t = 0; t < num_times; ++t) {
+    // Column-first iteration for cache efficiency on column-major matrices
+    for (Eigen::Index t = 0; t < num_times; ++t) {
+        for (Eigen::Index s = 0; s < num_scales; ++s) {
             std::complex<double> val = cwt(s, t);
             double mag = std::abs(val);
 
