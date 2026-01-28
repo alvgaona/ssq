@@ -1,4 +1,5 @@
 name: Release
+run-name: release ${{ github.ref_name }}
 
 on:
   push:
@@ -17,8 +18,9 @@ jobs:
             platform: linux-aarch64
           - os: macos-latest
             platform: osx-arm64
-          - os: windows-latest
-            platform: win-64
+          # TODO: fix CMake/pkg-config issues on Windows
+          # - os: windows-latest
+          #   platform: win-64
 
     runs-on: ${{ matrix.os }}
 
@@ -40,10 +42,17 @@ jobs:
           pixi run cmake --build build --config Release
           pixi run ctest --test-dir build --output-on-failure -C Release
 
+      - name: Set version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "SSQ_VERSION=${VERSION//-/}" >> $GITHUB_ENV
+        shell: bash
+
       - uses: prefix-dev/rattler-build-action@v0.2.22
         with:
           recipe-path: recipe/recipe.yaml
           upload-artifact: true
+          artifact-name: ssq-${{ matrix.platform }}-${{ github.run_attempt }}
           build-args: --package-format tar-bz2 --variant-config recipe/variants.yaml
 
   release:
@@ -51,6 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -62,21 +72,24 @@ jobs:
           cache: true
 
       - name: Generate release notes
-        run: pixi run git-cliff --latest --strip header > RELEASE_NOTES.md
+        run: pixi run git-cliff --latest | tail -n +2 > RELEASE_NOTES.md
 
       - uses: actions/download-artifact@v4
         with:
           path: packages
           merge-multiple: true
 
-      - uses: prefix-dev/rattler-build-action@v0.2.22
-        with:
-          upload-channel: ssq
-          upload-packages: packages/**/*.tar.bz2
+      - name: Upload to prefix.dev
+        run: |
+          for pkg in packages/**/*.tar.bz2; do
+            pixi run rattler-build upload prefix -c ssq "$pkg"
+          done
         env:
-          RATTLER_BUILD_PREFIX_DEV_TOKEN: ${{ secrets.PREFIX_DEV_TOKEN }}
+          PREFIX_API_KEY: ${{ secrets.PREFIX_DEV_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ github.ref_name }}
           body_path: RELEASE_NOTES.md
+          files: packages/**/*.tar.bz2

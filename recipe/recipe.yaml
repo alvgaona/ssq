@@ -1,47 +1,75 @@
-schema_version: 1
-
 context:
-  version: "0.1.0"
+  version: ${{ env.get("SSQ_VERSION", default="0.0.0") }}
 
-package:
-  name: ssq
+recipe:
+  name: ssq-split
   version: ${{ version }}
 
 source:
   path: ..
 
-build:
-  number: 0
-  script:
-    - if: unix
-      then:
-        - cmake -B build -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DSSQ_PYTHON_INSTALL_DIR=$SP_DIR -DPython_EXECUTABLE=$PYTHON
-        - cmake --build build
-        - cmake --install build
-    - if: win
-      then:
-        - cmake -B build -DCMAKE_INSTALL_PREFIX=%PREFIX% -DBUILD_SHARED_LIBS=ON -DSSQ_PYTHON_INSTALL_DIR=%SP_DIR% -DPython_EXECUTABLE=%PYTHON%
-        - cmake --build build --config Release
-        - cmake --install build --config Release
+outputs:
+  - package:
+      name: libssq
+      version: ${{ version }}
+    build:
+      number: 0
+      script:
+        - if: unix
+          then:
+            - cmake -B build -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+            - cmake --build build
+            - cmake --install build
+        - if: win
+          then:
+            - cmake -B build -DCMAKE_INSTALL_PREFIX=%PREFIX% -DBUILD_SHARED_LIBS=ON
+            - cmake --build build --config Release
+            - cmake --install build --config Release
+    requirements:
+      build:
+        - ${{ compiler('cxx') }}
+        - cmake >=3.18
+        - pkg-config
+      host:
+        - fftw >=3.3
+        - eigen >=3.4
+      run:
+        - fftw >=3.3
 
-requirements:
-  build:
-    - ${{ compiler('cxx') }}
-    - cmake >=3.18
-    - pkg-config
-  host:
-    - fftw >=3.3
-    - eigen >=3.4
-    - pybind11 >=2.11
-    - python ${{ python }}.*
-  run:
-    - fftw >=3.3
-    - python ${{ python }}.*
-
-tests:
-  - python:
-      imports:
-        - ssq
+  - package:
+      name: ssq
+      version: ${{ version }}
+    build:
+      number: 0
+      script:
+        - if: unix
+          then:
+            - cmake -B build -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DSSQ_PYTHON_INSTALL_DIR=$SP_DIR -DPython_EXECUTABLE=$PYTHON
+            - cmake --build build
+            - cmake --install build
+        - if: win
+          then:
+            - cmake -B build -DCMAKE_INSTALL_PREFIX=%PREFIX% -DBUILD_SHARED_LIBS=ON -DSSQ_PYTHON_INSTALL_DIR=%SP_DIR% -DPython_EXECUTABLE=%PYTHON%
+            - cmake --build build --config Release
+            - cmake --install build --config Release
+    requirements:
+      build:
+        - ${{ compiler('cxx') }}
+        - cmake >=3.18
+        - pkg-config
+      host:
+        - fftw >=3.3
+        - eigen >=3.4
+        - pybind11 >=2.11
+        - python ${{ python }}.*
+        - ${{ pin_subpackage('libssq', exact=True) }}
+      run:
+        - python ${{ python }}.*
+        - ${{ pin_subpackage('libssq', exact=True) }}
+    tests:
+      - python:
+          imports:
+            - ssq
 
 about:
   homepage: https://github.com/alvgaona/ssq

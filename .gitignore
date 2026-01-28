@@ -4,6 +4,7 @@
 
 # Build
 build/
+output/
 cmake-build-*/
 
 # pixi environments
