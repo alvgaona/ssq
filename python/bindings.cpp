@@ -2,6 +2,7 @@
 #include <pybind11/pybind11.h>
 
 #include "ssq/fsst.hpp"
+#include "ssq/windows.hpp"
 #include "ssq/wsst.hpp"
 
 #include <stdexcept>
@@ -83,4 +84,41 @@ PYBIND11_MODULE(ssq, m) {
           "Returns:\n"
           "    Reconstructed signal",
           py::arg("spectrum"), py::arg("frequencies"));
+
+    // Windows submodule
+    py::module_ windows = m.def_submodule("windows", "Window functions for FSST");
+
+    windows.def("kaiser", &ssq::windows::kaiser,
+                "Kaiser window\n\n"
+                "Args:\n"
+                "    length: Window length\n"
+                "    beta: Shape parameter (default 8.6)\n\n"
+                "Returns:\n"
+                "    Window array",
+                py::arg("length"), py::arg("beta") = 8.6);
+
+    windows.def("hamming", &ssq::windows::hamming,
+                "Hamming window\n\n"
+                "Args:\n"
+                "    length: Window length\n\n"
+                "Returns:\n"
+                "    Window array",
+                py::arg("length"));
+
+    windows.def("hann", &ssq::windows::hann,
+                "Hann window\n\n"
+                "Args:\n"
+                "    length: Window length\n\n"
+                "Returns:\n"
+                "    Window array",
+                py::arg("length"));
+
+    windows.def("gaussian", &ssq::windows::gaussian,
+                "Gaussian window\n\n"
+                "Args:\n"
+                "    length: Window length\n"
+                "    sigma: Standard deviation (default length/6)\n\n"
+                "Returns:\n"
+                "    Window array",
+                py::arg("length"), py::arg("sigma") = 0.0);
 }

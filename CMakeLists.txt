@@ -24,6 +24,7 @@ add_library(ssq_core STATIC
     src/wavelet.cpp
     src/cwt.cpp
     src/wsst.cpp
+    src/windows.cpp
 )
 
 target_include_directories(ssq_core PUBLIC
