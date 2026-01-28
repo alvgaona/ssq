@@ -14,9 +14,16 @@ build:
   number: 0
   conda_package_format: tar.bz2
   script:
-    - cmake -B build -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
-    - cmake --build build
-    - cmake --install build
+    - if: unix
+      then:
+        - cmake -B build -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+        - cmake --build build
+        - cmake --install build
+    - if: win
+      then:
+        - cmake -B build -DCMAKE_INSTALL_PREFIX=%PREFIX% -DBUILD_SHARED_LIBS=ON
+        - cmake --build build --config Release
+        - cmake --install build --config Release
 
 requirements:
   build:
