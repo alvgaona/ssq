@@ -1,7 +1,6 @@
 #ifndef SSQ_STFT_HPP
 #define SSQ_STFT_HPP
 
-#include "ssq/fftw_wrapper.hpp"
 #include "ssq/types.hpp"
 
 namespace ssq {

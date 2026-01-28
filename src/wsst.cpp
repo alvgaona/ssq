@@ -1,5 +1,6 @@
 #include "ssq/wsst.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace ssq {
@@ -7,6 +8,26 @@ namespace ssq {
 namespace {
 const double PI = 3.14159265358979323846;
 const double TWO_PI = 2.0 * PI;
+
+// Find nearest frequency bin using binary search (O(log n) instead of O(n))
+// Assumes frequencies are sorted in ascending order
+Eigen::Index find_nearest_bin(const Eigen::VectorXd& frequencies, double target) {
+    const Eigen::Index n = frequencies.size();
+    if (n == 0) return 0;
+    if (target <= frequencies(0)) return 0;
+    if (target >= frequencies(n - 1)) return n - 1;
+
+    // Binary search for first element >= target
+    const double* data = frequencies.data();
+    const double* it = std::lower_bound(data, data + n, target);
+    Eigen::Index idx = static_cast<Eigen::Index>(it - data);
+
+    // Check if previous element is closer
+    if (idx > 0 && (target - frequencies(idx - 1)) < (frequencies(idx) - target)) {
+        return idx - 1;
+    }
+    return idx;
+}
 }  // namespace
 
 Eigen::MatrixXd compute_wsst_phase_transform(const CwtResult& cwt, double sample_rate, double threshold) {
@@ -73,19 +94,7 @@ Eigen::MatrixXcd wsst_synchrosqueeze(const Eigen::MatrixXcd& cwt, const Eigen::M
 
             if (mag > threshold) {
                 double target_freq = omega(s, t);
-
-                // Find nearest frequency bin by searching (frequencies may not be uniformly spaced)
-                Eigen::Index target_bin = 0;
-                double min_diff = std::abs(target_frequencies(0) - target_freq);
-                for (Eigen::Index k = 1; k < num_freqs; ++k) {
-                    double diff = std::abs(target_frequencies(k) - target_freq);
-                    if (diff < min_diff) {
-                        min_diff = diff;
-                        target_bin = k;
-                    }
-                }
-
-                // Accumulate at target bin
+                Eigen::Index target_bin = find_nearest_bin(target_frequencies, target_freq);
                 result(target_bin, t) += val;
             }
         }

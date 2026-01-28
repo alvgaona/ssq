@@ -1,7 +1,10 @@
 #include "ssq/cwt.hpp"
 
-#include <cmath>
 #include <cstring>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 namespace ssq {
 
@@ -42,9 +45,7 @@ CwtResult Cwt::compute(const Eigen::VectorXd& signal, double sample_rate, const 
     }
 
     // Compute signal FFT (real-to-complex)
-    FftwPlan forward_plan =
-        FftwManager::instance().create_r2c_plan(static_cast<int>(n), signal_in.get(), signal_fft.get());
-    FftwManager::instance().execute(forward_plan);
+    FftwManager::instance().execute_r2c(static_cast<int>(n), signal_in.get(), signal_fft.get());
 
     // Convert to full complex spectrum for easier manipulation
     Eigen::VectorXcd signal_spectrum(n);
@@ -61,21 +62,19 @@ CwtResult Cwt::compute(const Eigen::VectorXd& signal, double sample_rate, const 
     Eigen::Index neg_count = n - neg_start;
     signal_spectrum.segment(neg_start, neg_count) = signal_spectrum.segment(1, neg_count).reverse().conjugate();
 
-    // Allocate arrays for inverse FFT
-    FftwArray<fftw_complex> product(static_cast<size_t>(n));
-    FftwArray<fftw_complex> cwt_out(static_cast<size_t>(n));
-
-    // Create inverse FFT plan (complex-to-complex)
-    FftwPlan inverse_plan =
-        FftwManager::instance().create_dft_plan(static_cast<int>(n), product.get(), cwt_out.get(), FFTW_BACKWARD);
-
-    // Temporary vectors for FFTW interop
-    Eigen::VectorXcd product_vec(n);
-    Eigen::VectorXcd cwt_out_vec(n);
     const double norm = 1.0 / static_cast<double>(n);
+    const int n_int = static_cast<int>(n);
+    const size_t n_size = static_cast<size_t>(n);
 
-    // Process each scale
+    // Process each scale (parallelized - each scale is independent)
+#pragma omp parallel for schedule(static)
     for (Eigen::Index s = 0; s < num_scales; ++s) {
+        // Thread-private buffers
+        FftwArray<fftw_complex> product(n_size);
+        FftwArray<fftw_complex> cwt_out(n_size);
+        Eigen::VectorXcd product_vec(n);
+        Eigen::VectorXcd cwt_out_vec(n);
+
         double scale = scales(s);
 
         // Get wavelet in frequency domain
@@ -83,25 +82,21 @@ CwtResult Cwt::compute(const Eigen::VectorXd& signal, double sample_rate, const 
         Eigen::VectorXcd psi_d = morlet_wavelet_freq_derivative(n, scale, dt, omega0_);
 
         // Compute CWT for this scale: IFFT(signal_fft * conj(psi_fft))
-        // Vectorized element-wise multiplication
         product_vec = signal_spectrum.cwiseProduct(psi.conjugate());
+        std::memcpy(product.get(), product_vec.data(), n_size * sizeof(fftw_complex));
 
-        // Copy to FFTW array
-        std::memcpy(product.get(), product_vec.data(), static_cast<size_t>(n) * sizeof(fftw_complex));
+        FftwManager::instance().execute_dft(n_int, product.get(), cwt_out.get(), FFTW_BACKWARD);
 
-        FftwManager::instance().execute(inverse_plan);
-
-        // Copy from FFTW and normalize (vectorized)
-        std::memcpy(cwt_out_vec.data(), cwt_out.get(), static_cast<size_t>(n) * sizeof(fftw_complex));
+        std::memcpy(cwt_out_vec.data(), cwt_out.get(), n_size * sizeof(fftw_complex));
         result.cwt.row(s) = cwt_out_vec.transpose() * norm;
 
-        // Compute CWT with derivative wavelet (vectorized)
+        // Compute CWT with derivative wavelet
         product_vec = signal_spectrum.cwiseProduct(psi_d.conjugate());
-        std::memcpy(product.get(), product_vec.data(), static_cast<size_t>(n) * sizeof(fftw_complex));
+        std::memcpy(product.get(), product_vec.data(), n_size * sizeof(fftw_complex));
 
-        FftwManager::instance().execute(inverse_plan);
+        FftwManager::instance().execute_dft(n_int, product.get(), cwt_out.get(), FFTW_BACKWARD);
 
-        std::memcpy(cwt_out_vec.data(), cwt_out.get(), static_cast<size_t>(n) * sizeof(fftw_complex));
+        std::memcpy(cwt_out_vec.data(), cwt_out.get(), n_size * sizeof(fftw_complex));
         result.cwt_d.row(s) = cwt_out_vec.transpose() * norm;
     }
 

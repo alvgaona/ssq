@@ -5,36 +5,32 @@
 #include <fftw3.h>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 
 namespace ssq {
 
 // Custom deleter for fftw_plan
 struct FftwPlanDeleter {
-    void operator()(fftw_plan* plan) const {
-        if (plan && *plan) {
-            fftw_destroy_plan(*plan);
+    void operator()(fftw_plan_s* plan) const {
+        if (plan) {
+            fftw_destroy_plan(plan);
         }
-        delete plan;
     }
 };
 
-// RAII wrapper for fftw_plan
+// RAII wrapper for fftw_plan using shared_ptr for cache sharing
 class FftwPlan {
 public:
     FftwPlan() : plan_(nullptr) {}
 
-    explicit FftwPlan(fftw_plan plan) : plan_(new fftw_plan(plan), FftwPlanDeleter{}) {}
+    explicit FftwPlan(fftw_plan plan) : plan_(plan, FftwPlanDeleter{}) {}
 
-    fftw_plan get() const {
-        return plan_ ? *plan_ : nullptr;
-    }
+    fftw_plan get() const { return plan_.get(); }
 
-    explicit operator bool() const {
-        return plan_ && *plan_;
-    }
+    explicit operator bool() const { return plan_ != nullptr; }
 
 private:
-    std::unique_ptr<fftw_plan, FftwPlanDeleter> plan_;
+    std::shared_ptr<fftw_plan_s> plan_;
 };
 
 // Custom deleter for fftw_malloc'd memory
@@ -85,24 +81,45 @@ private:
     size_t size_;
 };
 
-// Singleton manager for thread-safe FFTW plan creation
+// Plan types for cache key
+enum class PlanType { R2C, C2R, DFT_FORWARD, DFT_BACKWARD };
+
+// Cache key for FFTW plans
+struct PlanKey {
+    int size;
+    PlanType type;
+
+    bool operator==(const PlanKey& other) const { return size == other.size && type == other.type; }
+};
+
+struct PlanKeyHash {
+    std::size_t operator()(const PlanKey& key) const {
+        return std::hash<int>()(key.size) ^ (std::hash<int>()(static_cast<int>(key.type)) << 1);
+    }
+};
+
+// Singleton manager for thread-safe FFTW plan creation with caching
 class FftwManager {
 public:
     static FftwManager& instance();
 
-    // Create a forward DFT plan (real to complex)
+    // Get or create plans (cached by size and type)
+    FftwPlan get_r2c_plan(int n, double* in, fftw_complex* out);
+    FftwPlan get_c2r_plan(int n, fftw_complex* in, double* out);
+    FftwPlan get_dft_plan(int n, fftw_complex* in, fftw_complex* out, int sign);
+
+    // Execute plan with new arrays (uses cached plan)
+    void execute_r2c(int n, double* in, fftw_complex* out);
+    void execute_c2r(int n, fftw_complex* in, double* out);
+    void execute_dft(int n, fftw_complex* in, fftw_complex* out, int sign);
+
+    // Legacy methods (now use caching internally)
     FftwPlan create_r2c_plan(int n, double* in, fftw_complex* out, unsigned flags = FFTW_ESTIMATE);
-
-    // Create an inverse DFT plan (complex to real)
     FftwPlan create_c2r_plan(int n, fftw_complex* in, double* out, unsigned flags = FFTW_ESTIMATE);
-
-    // Create a forward DFT plan (complex to complex)
     FftwPlan create_dft_plan(int n, fftw_complex* in, fftw_complex* out, int sign, unsigned flags = FFTW_ESTIMATE);
-
-    // Execute a plan
     void execute(const FftwPlan& plan);
 
-    // Cleanup all FFTW resources (call at program exit if needed)
+    // Cleanup all FFTW resources
     void cleanup();
 
 private:
@@ -113,6 +130,7 @@ private:
     FftwManager& operator=(const FftwManager&) = delete;
 
     std::mutex mutex_;
+    std::unordered_map<PlanKey, FftwPlan, PlanKeyHash> plan_cache_;
 };
 
 }  // namespace ssq

@@ -1,6 +1,12 @@
 #include "ssq/stft.hpp"
 
+#include "ssq/fftw_wrapper.hpp"
+
 #include <cstring>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 namespace ssq {
 
@@ -44,9 +50,7 @@ void Stft::compute_fft_column(const Eigen::VectorXd& signal, const Eigen::Vector
         input_buffer[static_cast<size_t>(i)] = sample * win(i);
     }
 
-    FftwPlan plan = FftwManager::instance().create_r2c_plan(static_cast<int>(nfft_), input_buffer.get(),
-                                                            output_buffer.get());
-    FftwManager::instance().execute(plan);
+    FftwManager::instance().execute_r2c(static_cast<int>(nfft_), input_buffer.get(), output_buffer.get());
 
     const Eigen::Index num_freqs = nfft_ / 2 + 1;
     for (Eigen::Index k = 0; k < num_freqs; ++k) {
@@ -66,16 +70,10 @@ StftResult Stft::compute(const Eigen::VectorXd& signal, double sample_rate) cons
     result.frequencies = Eigen::VectorXd::LinSpaced(num_freqs, 0.0, sample_rate / 2.0);
     result.times = Eigen::VectorXd::LinSpaced(num_times, 0.0, static_cast<double>(sig_len - 1) / sample_rate);
 
-    Eigen::VectorXcd fft_g(num_freqs);
-    Eigen::VectorXcd fft_dg(num_freqs);
-
+#pragma omp parallel for schedule(static)
     for (Eigen::Index t = 0; t < num_times; ++t) {
-        compute_fft_column(signal, window_, t, fft_g.data());
-        compute_fft_column(signal, window_derivative_, t, fft_dg.data());
-
-        // Vectorized column copy
-        result.stft.col(t) = fft_g;
-        result.stft_dg.col(t) = fft_dg;
+        compute_fft_column(signal, window_, t, result.stft.col(t).data());
+        compute_fft_column(signal, window_derivative_, t, result.stft_dg.col(t).data());
     }
 
     return result;

@@ -10,6 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFTW3 REQUIRED fftw3)
 find_package(Eigen3 REQUIRED)
+find_package(OpenMP)
 
 # Option for building tests
 option(SSQ_BUILD_TESTS "Build unit tests" OFF)
@@ -32,6 +33,10 @@ target_include_directories(ssq_core PUBLIC
 
 target_link_libraries(ssq_core PUBLIC ${FFTW3_LIBRARIES} Eigen3::Eigen)
 target_link_directories(ssq_core PUBLIC ${FFTW3_LIBRARY_DIRS})
+
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(ssq_core PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
 # Python bindings
 find_package(pybind11 CONFIG)
