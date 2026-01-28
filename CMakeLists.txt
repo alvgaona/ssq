@@ -34,7 +34,13 @@ target_include_directories(ssq_core PUBLIC
     ${FFTW3_INCLUDE_DIRS}
 )
 
-target_link_libraries(ssq_core PUBLIC ${FFTW3_LIBRARIES} Eigen3::Eigen)
+# Filter out 'm' library on Windows (math lib doesn't exist separately)
+set(FFTW3_LIBS ${FFTW3_LIBRARIES})
+if(WIN32)
+    list(REMOVE_ITEM FFTW3_LIBS "m")
+endif()
+
+target_link_libraries(ssq_core PUBLIC ${FFTW3_LIBS} Eigen3::Eigen)
 target_link_directories(ssq_core PUBLIC ${FFTW3_LIBRARY_DIRS})
 
 if(OpenMP_CXX_FOUND)
