@@ -123,14 +123,13 @@ Eigen::VectorXd ifsst_impl(const Eigen::MatrixXcd& spectrum, const Eigen::Vector
     FftwArray<fftw_complex> freq_in(static_cast<size_t>(num_freqs));
     FftwArray<double> time_out(static_cast<size_t>(nfft));
 
-    // Pre-zero the entire frequency array once (optimization for filtered case)
-    for (size_t k = 0; k < static_cast<size_t>(num_freqs); ++k) {
-        freq_in[k][0] = 0.0;
-        freq_in[k][1] = 0.0;
-    }
-
     for (Eigen::Index t = 0; t < num_times; ++t) {
-        // Copy only in-range spectrum bins to FFTW array
+        // Zero entire array then fill in-range bins
+        // (must zero each iteration since FFTW c2r may destroy input)
+        for (size_t k = 0; k < static_cast<size_t>(num_freqs); ++k) {
+            freq_in[k][0] = 0.0;
+            freq_in[k][1] = 0.0;
+        }
         for (Eigen::Index k = k_min; k <= k_max; ++k) {
             freq_in[static_cast<size_t>(k)][0] = spectrum(k, t).real();
             freq_in[static_cast<size_t>(k)][1] = spectrum(k, t).imag();
