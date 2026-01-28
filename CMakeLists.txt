@@ -46,21 +46,27 @@ if(SSQ_NATIVE_ARCH)
 endif()
 
 
-# Python bindings
-find_package(pybind11 CONFIG)
-if(pybind11_FOUND)
-    pybind11_add_module(ssq python/bindings.cpp)
-    target_link_libraries(ssq PRIVATE ssq_core)
+# Install C++ library and headers
+install(TARGETS ssq_core LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+install(DIRECTORY include/ssq DESTINATION include)
 
-    # Get Python site-packages directory
+# Python bindings
+find_package(Python COMPONENTS Interpreter Development QUIET)
+find_package(pybind11 CONFIG)
+if(pybind11_FOUND AND Python_FOUND)
+    pybind11_add_module(ssq_python python/bindings.cpp)
+    target_link_libraries(ssq_python PRIVATE ssq_core)
+    set_target_properties(ssq_python PROPERTIES OUTPUT_NAME ssq)
+
+    # Get Python site-packages for install
     execute_process(
-        COMMAND ${PYTHON_EXECUTABLE} -c "import site; print(site.getsitepackages()[0])"
+        COMMAND "${Python_EXECUTABLE}" -c "import sysconfig; print(sysconfig.get_path('platlib'))"
         OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-
-    # Install Python module to site-packages
-    install(TARGETS ssq LIBRARY DESTINATION ${PYTHON_SITE_PACKAGES})
+    if(PYTHON_SITE_PACKAGES)
+        install(TARGETS ssq_python LIBRARY DESTINATION "${PYTHON_SITE_PACKAGES}")
+    endif()
 endif()
 
 # Tests

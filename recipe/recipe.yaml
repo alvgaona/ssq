@@ -1,0 +1,43 @@
+schema_version: 1
+
+context:
+  version: "0.1.0"
+
+package:
+  name: ssq
+  version: ${{ version }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script:
+    - cmake -B build -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+    - cmake --build build
+    - cmake --install build
+
+requirements:
+  build:
+    - ${{ compiler('cxx') }}
+    - cmake >=3.18
+    - pkg-config
+  host:
+    - fftw >=3.3
+    - eigen >=3.4
+    - pybind11 >=2.11
+    - python
+  run:
+    - fftw >=3.3
+    - python
+
+tests:
+  - python:
+      imports:
+        - ssq
+
+about:
+  homepage: https://github.com/alvgaona/ssq
+  license: LGPL-3.0-or-later
+  license_file: LICENSE
+  summary: Synchrosqueezed Transform library (FSST and WSST)
