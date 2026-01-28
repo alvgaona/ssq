@@ -130,4 +130,53 @@ WsstResult wsst(const Eigen::VectorXd& signal, double sample_rate, WaveletType w
     return result;
 }
 
+Eigen::VectorXd iwsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& frequencies) {
+    // Inverse WSST: reconstruct signal from synchrosqueezed spectrum
+    //
+    // For wavelet synchrosqueezing, reconstruction integrates over scale:
+    //   x(t) = C_psi^(-1) * Re(∫ W(a,t) * da/a)
+    //
+    // Since the CWT wavelet is normalized by sqrt(scale) and scale ∝ 1/f,
+    // the integration measure da/a transforms to df/sqrt(f) when converting
+    // to frequency domain. Combined with df spacing:
+    //   x(t) = C * Re(∑_k S(k,t) * df_k / sqrt(f_k))
+
+    const Eigen::Index num_freqs = spectrum.rows();
+    const Eigen::Index num_times = spectrum.cols();
+
+    if (num_freqs < 2) {
+        return spectrum.colwise().sum().real().transpose();
+    }
+
+    // Compute frequency spacing (logarithmic spacing)
+    Eigen::VectorXd df(num_freqs);
+    df(0) = frequencies(1) - frequencies(0);
+    for (Eigen::Index k = 1; k < num_freqs - 1; ++k) {
+        df(k) = (frequencies(k + 1) - frequencies(k - 1)) / 2.0;
+    }
+    df(num_freqs - 1) = frequencies(num_freqs - 1) - frequencies(num_freqs - 2);
+
+    // Weighted sum with scale-frequency correction: ∑_k S(k, t) * df_k / sqrt(f_k)
+    Eigen::VectorXd result(num_times);
+    for (Eigen::Index t = 0; t < num_times; ++t) {
+        std::complex<double> sum = 0.0;
+        for (Eigen::Index k = 0; k < num_freqs; ++k) {
+            double weight = df(k) / std::sqrt(frequencies(k));
+            sum += spectrum(k, t) * weight;
+        }
+        result(t) = sum.real();
+    }
+
+    // Normalization constant for Morlet wavelet
+    // For omega0=6, the reconstruction normalization is omega0 + sqrt(pi)/4
+    // This accounts for the wavelet L2 normalization and scale-frequency Jacobian
+    constexpr double omega0 = 6.0;
+    double norm = omega0 + std::sqrt(PI) / 4.0;
+    return result * norm;
+}
+
+Eigen::VectorXd iwsst(const WsstResult& result) {
+    return iwsst(result.spectrum, result.frequencies);
+}
+
 }  // namespace ssq

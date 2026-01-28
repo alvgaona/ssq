@@ -10,14 +10,15 @@ namespace py = pybind11;
 
 // Python wrapper for fsst function
 // Returns tuple of (spectrum, frequencies, times) as numpy arrays
-// pybind11's Eigen support automatically converts between numpy and Eigen types
 py::tuple py_fsst(Eigen::Ref<const Eigen::VectorXd> signal, double sample_rate,
                   Eigen::Ref<const Eigen::VectorXd> window, double threshold = 1e-6) {
-    // Compute FSST
     ssq::FsstResult result = ssq::fsst(signal, sample_rate, window, threshold);
-
-    // Return as tuple - pybind11 automatically converts Eigen types to numpy
     return py::make_tuple(std::move(result.spectrum), std::move(result.frequencies), std::move(result.times));
+}
+
+// Python wrapper for ifsst function
+Eigen::VectorXd py_ifsst(Eigen::Ref<const Eigen::MatrixXcd> spectrum, Eigen::Ref<const Eigen::VectorXd> window) {
+    return ssq::ifsst(spectrum, window);
 }
 
 // Python wrapper for wsst function (MATLAB-compatible API)
@@ -41,11 +42,25 @@ py::tuple py_wsst(Eigen::Ref<const Eigen::VectorXd> signal, double sample_rate, 
     return py::make_tuple(std::move(result.spectrum), std::move(result.frequencies), std::move(result.times));
 }
 
+// Python wrapper for iwsst function
+Eigen::VectorXd py_iwsst(Eigen::Ref<const Eigen::MatrixXcd> spectrum, Eigen::Ref<const Eigen::VectorXd> frequencies) {
+    return ssq::iwsst(spectrum, frequencies);
+}
+
 PYBIND11_MODULE(ssq, m) {
     m.doc() = "Synchrosqueezed Transform implementations (FSST and WSST)";
 
     m.def("fsst", &py_fsst, "Compute the Fourier Synchrosqueezed Transform", py::arg("signal"),
           py::arg("sample_rate"), py::arg("window"), py::arg("threshold") = 1e-6);
+
+    m.def("ifsst", &py_ifsst,
+          "Inverse FSST: reconstruct signal from synchrosqueezed spectrum\n\n"
+          "Args:\n"
+          "    spectrum: Synchrosqueezed spectrum from fsst()\n"
+          "    window: Analysis window used in forward transform\n\n"
+          "Returns:\n"
+          "    Reconstructed signal",
+          py::arg("spectrum"), py::arg("window"));
 
     m.def("wsst", &py_wsst,
           "Compute the Wavelet Synchrosqueezed Transform\n\n"
@@ -59,4 +74,13 @@ PYBIND11_MODULE(ssq, m) {
           "    Tuple of (spectrum, frequencies, times)",
           py::arg("signal"), py::arg("sample_rate"), py::arg("wavelet") = "amor", py::arg("num_voices") = 32,
           py::arg("threshold") = 1e-6);
+
+    m.def("iwsst", &py_iwsst,
+          "Inverse WSST: reconstruct signal from synchrosqueezed spectrum\n\n"
+          "Args:\n"
+          "    spectrum: Synchrosqueezed spectrum from wsst()\n"
+          "    frequencies: Frequency axis from wsst()\n\n"
+          "Returns:\n"
+          "    Reconstructed signal",
+          py::arg("spectrum"), py::arg("frequencies"));
 }

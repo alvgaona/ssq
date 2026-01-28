@@ -1,5 +1,7 @@
 #include "ssq/fsst.hpp"
 
+#include "ssq/fftw_wrapper.hpp"
+
 #include <algorithm>
 #include <cmath>
 
@@ -107,6 +109,62 @@ FsstResult fsst(const Eigen::VectorXd& signal, double sample_rate, const Eigen::
     result.times = std::move(stft_result.times);
 
     return result;
+}
+
+Eigen::VectorXd ifsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& window) {
+    // Inverse FSST: reconstruct signal using overlap-add synthesis
+    //
+    // For each time point:
+    //   1. Inverse FFT the spectrum column to get a time-domain frame
+    //   2. Window the frame
+    //   3. Overlap-add into the output
+
+    const Eigen::Index num_freqs = spectrum.rows();
+    const Eigen::Index num_times = spectrum.cols();
+    const Eigen::Index nfft = (num_freqs - 1) * 2;
+    const Eigen::Index half_win = nfft / 2;
+    const Eigen::Index win_len = window.size();
+
+    Eigen::VectorXd reconstructed = Eigen::VectorXd::Zero(num_times);
+    Eigen::VectorXd window_sum = Eigen::VectorXd::Zero(num_times);
+
+    // Allocate FFTW arrays for inverse FFT
+    FftwArray<fftw_complex> freq_in(static_cast<size_t>(num_freqs));
+    FftwArray<double> time_out(static_cast<size_t>(nfft));
+
+    for (Eigen::Index t = 0; t < num_times; ++t) {
+        // Copy spectrum column to FFTW array
+        for (Eigen::Index k = 0; k < num_freqs; ++k) {
+            freq_in[static_cast<size_t>(k)][0] = spectrum(k, t).real();
+            freq_in[static_cast<size_t>(k)][1] = spectrum(k, t).imag();
+        }
+
+        // Inverse FFT (complex-to-real)
+        FftwManager::instance().execute_c2r(static_cast<int>(nfft), freq_in.get(), time_out.get());
+
+        // Overlap-add with window
+        for (Eigen::Index i = 0; i < win_len && i < nfft; ++i) {
+            Eigen::Index out_idx = t - half_win + i;
+            if (out_idx >= 0 && out_idx < num_times) {
+                double sample = time_out[static_cast<size_t>(i)] / static_cast<double>(nfft);
+                reconstructed(out_idx) += sample * window(i);
+                window_sum(out_idx) += window(i) * window(i);
+            }
+        }
+    }
+
+    // Normalize by window sum
+    for (Eigen::Index i = 0; i < num_times; ++i) {
+        if (window_sum(i) > 1e-10) {
+            reconstructed(i) /= window_sum(i);
+        }
+    }
+
+    return reconstructed;
+}
+
+Eigen::VectorXd ifsst(const FsstResult& result, const Eigen::VectorXd& window) {
+    return ifsst(result.spectrum, window);
 }
 
 }  // namespace ssq

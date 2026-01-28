@@ -44,6 +44,7 @@ if(SSQ_NATIVE_ARCH)
     target_compile_options(ssq_core PRIVATE -march=native)
 endif()
 
+
 # Python bindings
 find_package(pybind11 CONFIG)
 if(pybind11_FOUND)

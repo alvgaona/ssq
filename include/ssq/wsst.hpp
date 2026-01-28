@@ -30,6 +30,15 @@ Eigen::MatrixXd compute_wsst_phase_transform(const CwtResult& cwt, double sample
 Eigen::MatrixXcd wsst_synchrosqueeze(const Eigen::MatrixXcd& cwt, const Eigen::MatrixXd& omega,
                                      const Eigen::VectorXd& target_frequencies, double threshold);
 
+// Inverse WSST: reconstruct signal from synchrosqueezed spectrum
+// spectrum: Synchrosqueezed spectrum (freq_bins x time_steps)
+// frequencies: Frequency axis from forward transform
+// Returns: Reconstructed signal
+Eigen::VectorXd iwsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& frequencies);
+
+// Inverse WSST from WsstResult
+Eigen::VectorXd iwsst(const WsstResult& result);
+
 }  // namespace ssq
 
 #endif  // SSQ_WSST_HPP

@@ -29,6 +29,14 @@ Eigen::MatrixXd compute_phase_transform(const StftResult& stft, double sample_ra
 Eigen::MatrixXcd synchrosqueeze(const Eigen::MatrixXcd& stft, const Eigen::MatrixXd& omega,
                                 const Eigen::VectorXd& frequencies, double threshold);
 
+// Inverse FSST: reconstruct signal from synchrosqueezed spectrum
+// Synchrosqueezing preserves column sums, so summing along frequency reconstructs the signal
+// spectrum: Synchrosqueezed spectrum (freq_bins x time_steps)
+// window: Analysis window used in forward transform
+// Returns: Reconstructed signal
+Eigen::VectorXd ifsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& window);
+Eigen::VectorXd ifsst(const FsstResult& result, const Eigen::VectorXd& window);
+
 }  // namespace ssq
 
 #endif  // SSQ_SSQ_HPP
