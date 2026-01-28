@@ -1,13 +1,10 @@
 #include "ssq/wavelet.hpp"
 
+#include "ssq/constants.hpp"
+
 #include <cmath>
 
 namespace ssq {
-
-namespace {
-const double PI = 3.14159265358979323846;
-const double TWO_PI = 2.0 * PI;
-}  // namespace
 
 WaveletParams get_wavelet_params(WaveletType type) {
     WaveletParams params;
