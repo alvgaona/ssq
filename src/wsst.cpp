@@ -34,9 +34,7 @@ Eigen::VectorXd compute_df(const Eigen::VectorXd& frequencies) {
     const Eigen::Index n = frequencies.size();
     Eigen::VectorXd df(n);
     df(0) = frequencies(1) - frequencies(0);
-    for (Eigen::Index k = 1; k < n - 1; ++k) {
-        df(k) = (frequencies(k + 1) - frequencies(k - 1)) / 2.0;
-    }
+    df.segment(1, n - 2) = (frequencies.tail(n - 2) - frequencies.head(n - 2)) / 2.0;
     df(n - 1) = frequencies(n - 1) - frequencies(n - 2);
     return df;
 }
@@ -44,21 +42,19 @@ Eigen::VectorXd compute_df(const Eigen::VectorXd& frequencies) {
 // Internal implementation for inverse WSST with bin range
 Eigen::VectorXd iwsst_impl(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& frequencies,
                            const Eigen::VectorXd& df, Eigen::Index k_min, Eigen::Index k_max) {
-    const Eigen::Index num_times = spectrum.cols();
+    // Weighted sum: result(t) = Re(∑_k S(k,t) * weight_k) where weight_k = df_k / sqrt(f_k)
+    // Using Eigen: result = Re(spectrum_block^T * weights)
 
-    // Weighted sum with scale-frequency correction: ∑_k S(k, t) * df_k / sqrt(f_k)
-    Eigen::VectorXd result(num_times);
-    for (Eigen::Index t = 0; t < num_times; ++t) {
-        std::complex<double> sum = 0.0;
-        for (Eigen::Index k = k_min; k <= k_max; ++k) {
-            double weight = df(k) / std::sqrt(frequencies(k));
-            sum += spectrum(k, t) * weight;
-        }
-        result(t) = sum.real();
-    }
+    const Eigen::Index range = k_max - k_min + 1;
+
+    // Precompute weights once (avoids redundant sqrt calls per time step)
+    Eigen::VectorXcd weights = (df.segment(k_min, range).array() /
+                                frequencies.segment(k_min, range).array().sqrt()).cast<std::complex<double>>();
+
+    // Matrix-vector product: (range x num_times)^T * (range x 1) = (num_times x 1)
+    Eigen::VectorXd result = (spectrum.block(k_min, 0, range, spectrum.cols()).transpose() * weights).real();
 
     // Normalization constant for Morlet wavelet
-    // For omega0=6, the reconstruction normalization is omega0 + sqrt(pi)/4
     constexpr double omega0 = 6.0;
     double norm = omega0 + std::sqrt(PI) / 4.0;
     return result * norm;
