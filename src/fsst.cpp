@@ -163,4 +163,69 @@ Eigen::VectorXd ifsst(const FsstResult& result, const Eigen::VectorXd& window) {
     return ifsst(result.spectrum, window);
 }
 
+Eigen::VectorXd ifsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& window,
+                      const Eigen::VectorXd& frequencies, const std::pair<double, double>& freqrange) {
+    // Inverse FSST with frequency range filtering
+    // Zero out frequency bins outside the specified range before IFFT
+
+    const double freq_min = freqrange.first;
+    const double freq_max = freqrange.second;
+
+    const Eigen::Index num_freqs = spectrum.rows();
+    const Eigen::Index num_times = spectrum.cols();
+    const Eigen::Index nfft = (num_freqs - 1) * 2;
+    const Eigen::Index half_win = nfft / 2;
+    const Eigen::Index win_len = window.size();
+
+    // Find bin indices for frequency range using binary search
+    const double* freq_data = frequencies.data();
+    auto it_min = std::lower_bound(freq_data, freq_data + num_freqs, freq_min);
+    auto it_max = std::upper_bound(freq_data, freq_data + num_freqs, freq_max);
+    Eigen::Index k_min = static_cast<Eigen::Index>(it_min - freq_data);
+    Eigen::Index k_max = static_cast<Eigen::Index>(it_max - freq_data);
+    if (k_max > 0) --k_max;  // upper_bound returns one past, so back up
+
+    Eigen::VectorXd reconstructed = Eigen::VectorXd::Zero(num_times);
+    Eigen::VectorXd window_sum = Eigen::VectorXd::Zero(num_times);
+
+    // Allocate FFTW arrays for inverse FFT
+    FftwArray<fftw_complex> freq_in(static_cast<size_t>(num_freqs));
+    FftwArray<double> time_out(static_cast<size_t>(nfft));
+
+    for (Eigen::Index t = 0; t < num_times; ++t) {
+        // Copy spectrum column to FFTW array, zeroing out-of-range bins
+        for (Eigen::Index k = 0; k < num_freqs; ++k) {
+            if (k >= k_min && k <= k_max) {
+                freq_in[static_cast<size_t>(k)][0] = spectrum(k, t).real();
+                freq_in[static_cast<size_t>(k)][1] = spectrum(k, t).imag();
+            } else {
+                freq_in[static_cast<size_t>(k)][0] = 0.0;
+                freq_in[static_cast<size_t>(k)][1] = 0.0;
+            }
+        }
+
+        // Inverse FFT (complex-to-real)
+        FftwManager::instance().execute_c2r(static_cast<int>(nfft), freq_in.get(), time_out.get());
+
+        // Overlap-add with window
+        for (Eigen::Index i = 0; i < win_len && i < nfft; ++i) {
+            Eigen::Index out_idx = t - half_win + i;
+            if (out_idx >= 0 && out_idx < num_times) {
+                double sample = time_out[static_cast<size_t>(i)] / static_cast<double>(nfft);
+                reconstructed(out_idx) += sample * window(i);
+                window_sum(out_idx) += window(i) * window(i);
+            }
+        }
+    }
+
+    // Normalize by window sum
+    for (Eigen::Index i = 0; i < num_times; ++i) {
+        if (window_sum(i) > 1e-10) {
+            reconstructed(i) /= window_sum(i);
+        }
+    }
+
+    return reconstructed;
+}
+
 }  // namespace ssq

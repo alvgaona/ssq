@@ -17,9 +17,17 @@ py::tuple py_fsst(Eigen::Ref<const Eigen::VectorXd> signal, double sample_rate,
     return py::make_tuple(std::move(result.spectrum), std::move(result.frequencies), std::move(result.times));
 }
 
-// Python wrapper for ifsst function
+// Python wrapper for ifsst function (full reconstruction)
 Eigen::VectorXd py_ifsst(Eigen::Ref<const Eigen::MatrixXcd> spectrum, Eigen::Ref<const Eigen::VectorXd> window) {
     return ssq::ifsst(spectrum, window);
+}
+
+// Python wrapper for ifsst function with frequency range
+Eigen::VectorXd py_ifsst_freqrange(Eigen::Ref<const Eigen::MatrixXcd> spectrum,
+                                   Eigen::Ref<const Eigen::VectorXd> window,
+                                   Eigen::Ref<const Eigen::VectorXd> frequencies,
+                                   std::pair<double, double> freqrange) {
+    return ssq::ifsst(spectrum, window, frequencies, freqrange);
 }
 
 // Python wrapper for wsst function (MATLAB-compatible API)
@@ -43,9 +51,16 @@ py::tuple py_wsst(Eigen::Ref<const Eigen::VectorXd> signal, double sample_rate, 
     return py::make_tuple(std::move(result.spectrum), std::move(result.frequencies), std::move(result.times));
 }
 
-// Python wrapper for iwsst function
+// Python wrapper for iwsst function (full reconstruction)
 Eigen::VectorXd py_iwsst(Eigen::Ref<const Eigen::MatrixXcd> spectrum, Eigen::Ref<const Eigen::VectorXd> frequencies) {
     return ssq::iwsst(spectrum, frequencies);
+}
+
+// Python wrapper for iwsst function with frequency range
+Eigen::VectorXd py_iwsst_freqrange(Eigen::Ref<const Eigen::MatrixXcd> spectrum,
+                                   Eigen::Ref<const Eigen::VectorXd> frequencies,
+                                   std::pair<double, double> freqrange) {
+    return ssq::iwsst(spectrum, frequencies, freqrange);
 }
 
 PYBIND11_MODULE(ssq, m) {
@@ -62,6 +77,17 @@ PYBIND11_MODULE(ssq, m) {
           "Returns:\n"
           "    Reconstructed signal",
           py::arg("spectrum"), py::arg("window"));
+
+    m.def("ifsst", &py_ifsst_freqrange,
+          "Inverse FSST with frequency range: reconstruct only specified frequency range\n\n"
+          "Args:\n"
+          "    spectrum: Synchrosqueezed spectrum from fsst()\n"
+          "    window: Analysis window used in forward transform\n"
+          "    frequencies: Frequency axis from fsst()\n"
+          "    freqrange: Tuple (fmin, fmax) in Hz - only reconstruct this range\n\n"
+          "Returns:\n"
+          "    Reconstructed signal containing only the specified frequency range",
+          py::arg("spectrum"), py::arg("window"), py::arg("frequencies"), py::arg("freqrange"));
 
     m.def("wsst", &py_wsst,
           "Compute the Wavelet Synchrosqueezed Transform\n\n"
@@ -84,6 +110,16 @@ PYBIND11_MODULE(ssq, m) {
           "Returns:\n"
           "    Reconstructed signal",
           py::arg("spectrum"), py::arg("frequencies"));
+
+    m.def("iwsst", &py_iwsst_freqrange,
+          "Inverse WSST with frequency range: reconstruct only specified frequency range\n\n"
+          "Args:\n"
+          "    spectrum: Synchrosqueezed spectrum from wsst()\n"
+          "    frequencies: Frequency axis from wsst()\n"
+          "    freqrange: Tuple (fmin, fmax) in Hz - only reconstruct this range\n\n"
+          "Returns:\n"
+          "    Reconstructed signal containing only the specified frequency range",
+          py::arg("spectrum"), py::arg("frequencies"), py::arg("freqrange"));
 
     // Windows submodule
     py::module_ windows = m.def_submodule("windows", "Window functions for FSST");

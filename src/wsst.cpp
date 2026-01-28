@@ -173,4 +173,55 @@ Eigen::VectorXd iwsst(const WsstResult& result) {
     return iwsst(result.spectrum, result.frequencies);
 }
 
+Eigen::VectorXd iwsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& frequencies,
+                      const std::pair<double, double>& freqrange) {
+    // Inverse WSST with frequency range filtering
+    // Only integrate over the specified frequency range
+
+    const double freq_min = freqrange.first;
+    const double freq_max = freqrange.second;
+
+    const Eigen::Index num_freqs = spectrum.rows();
+    const Eigen::Index num_times = spectrum.cols();
+
+    if (num_freqs < 2) {
+        // If only one frequency, just return sum if it's in range
+        Eigen::VectorXd result(num_times);
+        for (Eigen::Index t = 0; t < num_times; ++t) {
+            if (frequencies(0) >= freq_min && frequencies(0) <= freq_max) {
+                result(t) = spectrum(0, t).real();
+            } else {
+                result(t) = 0.0;
+            }
+        }
+        return result;
+    }
+
+    // Compute frequency spacing (logarithmic spacing)
+    Eigen::VectorXd df(num_freqs);
+    df(0) = frequencies(1) - frequencies(0);
+    for (Eigen::Index k = 1; k < num_freqs - 1; ++k) {
+        df(k) = (frequencies(k + 1) - frequencies(k - 1)) / 2.0;
+    }
+    df(num_freqs - 1) = frequencies(num_freqs - 1) - frequencies(num_freqs - 2);
+
+    // Weighted sum with scale-frequency correction, filtered by frequency range
+    Eigen::VectorXd result(num_times);
+    for (Eigen::Index t = 0; t < num_times; ++t) {
+        std::complex<double> sum = 0.0;
+        for (Eigen::Index k = 0; k < num_freqs; ++k) {
+            double f = frequencies(k);
+            if (f < freq_min || f > freq_max) continue;
+            double weight = df(k) / std::sqrt(f);
+            sum += spectrum(k, t) * weight;
+        }
+        result(t) = sum.real();
+    }
+
+    // Normalization constant for Morlet wavelet
+    constexpr double omega0 = 6.0;
+    double norm = omega0 + std::sqrt(PI) / 4.0;
+    return result * norm;
+}
+
 }  // namespace ssq

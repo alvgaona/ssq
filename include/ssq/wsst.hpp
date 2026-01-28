@@ -39,6 +39,14 @@ Eigen::VectorXd iwsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& f
 // Inverse WSST from WsstResult
 Eigen::VectorXd iwsst(const WsstResult& result);
 
+// Inverse WSST with frequency range filtering (MATLAB-compatible)
+// spectrum: Synchrosqueezed spectrum (freq_bins x time_steps)
+// frequencies: Frequency axis from forward transform
+// freqrange: Frequency range [fmin, fmax] in Hz - only reconstruct this range
+// Returns: Reconstructed signal containing only the specified frequency range
+Eigen::VectorXd iwsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& frequencies,
+                      const std::pair<double, double>& freqrange);
+
 }  // namespace ssq
 
 #endif  // SSQ_WSST_HPP
