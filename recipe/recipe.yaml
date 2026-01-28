@@ -33,10 +33,10 @@ requirements:
     - fftw >=3.3
     - eigen >=3.4
     - pybind11 >=2.11
-    - python
+    - python ${{ python }}.*
   run:
     - fftw >=3.3
-    - python
+    - python ${{ python }}.*
 
 tests:
   - python:
