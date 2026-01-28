@@ -232,3 +232,99 @@ TEST_F(WsstTest, InverseFrequencyIndependence) {
             << "Reconstruction scale should be ~1.0 at " << freq << " Hz";
     }
 }
+
+TEST_F(WsstTest, InverseFrequencyRangeLowComponent) {
+    // Create signal with two well-separated frequency components
+    Eigen::Index n = 2000;
+    double freq_low = 50.0;
+    double freq_high = 200.0;
+
+    Eigen::VectorXd sig(n);
+    Eigen::VectorXd sig_low(n);
+
+    for (Eigen::Index i = 0; i < n; ++i) {
+        double t = static_cast<double>(i) / sample_rate;
+        sig_low(i) = std::sin(2.0 * PI * freq_low * t);
+        double high = std::sin(2.0 * PI * freq_high * t);
+        sig(i) = sig_low(i) + high;
+    }
+
+    auto result = ssq::wsst(sig, sample_rate);
+
+    // Reconstruct only the low frequency component (40-60 Hz)
+    Eigen::VectorXd reconstructed = ssq::iwsst(result.spectrum, result.frequencies,
+                                               std::make_pair(40.0, 60.0));
+
+    // Check correlation with expected low-frequency signal in middle region
+    Eigen::Index mid_start = n / 4;
+    Eigen::Index mid_end = 3 * n / 4;
+
+    double mean_ref = 0.0, mean_rec = 0.0;
+    for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+        mean_ref += sig_low(i);
+        mean_rec += reconstructed(i);
+    }
+    Eigen::Index count = mid_end - mid_start;
+    mean_ref /= count;
+    mean_rec /= count;
+
+    double cov = 0.0, var_ref = 0.0, var_rec = 0.0;
+    for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+        double dr = sig_low(i) - mean_ref;
+        double dc = reconstructed(i) - mean_rec;
+        cov += dr * dc;
+        var_ref += dr * dr;
+        var_rec += dc * dc;
+    }
+    double corr = cov / std::sqrt(var_ref * var_rec);
+
+    EXPECT_GT(corr, 0.95) << "Filtered reconstruction should correlate with low-freq component";
+}
+
+TEST_F(WsstTest, InverseFrequencyRangeHighComponent) {
+    // Create signal with two well-separated frequency components
+    Eigen::Index n = 2000;
+    double freq_low = 50.0;
+    double freq_high = 200.0;
+
+    Eigen::VectorXd sig(n);
+    Eigen::VectorXd sig_high(n);
+
+    for (Eigen::Index i = 0; i < n; ++i) {
+        double t = static_cast<double>(i) / sample_rate;
+        double low = std::sin(2.0 * PI * freq_low * t);
+        sig_high(i) = std::sin(2.0 * PI * freq_high * t);
+        sig(i) = low + sig_high(i);
+    }
+
+    auto result = ssq::wsst(sig, sample_rate);
+
+    // Reconstruct only the high frequency component (180-220 Hz)
+    Eigen::VectorXd reconstructed = ssq::iwsst(result.spectrum, result.frequencies,
+                                               std::make_pair(180.0, 220.0));
+
+    // Check correlation with expected high-frequency signal in middle region
+    Eigen::Index mid_start = n / 4;
+    Eigen::Index mid_end = 3 * n / 4;
+
+    double mean_ref = 0.0, mean_rec = 0.0;
+    for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+        mean_ref += sig_high(i);
+        mean_rec += reconstructed(i);
+    }
+    Eigen::Index count = mid_end - mid_start;
+    mean_ref /= count;
+    mean_rec /= count;
+
+    double cov = 0.0, var_ref = 0.0, var_rec = 0.0;
+    for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+        double dr = sig_high(i) - mean_ref;
+        double dc = reconstructed(i) - mean_rec;
+        cov += dr * dc;
+        var_ref += dr * dr;
+        var_rec += dc * dc;
+    }
+    double corr = cov / std::sqrt(var_ref * var_rec);
+
+    EXPECT_GT(corr, 0.95) << "Filtered reconstruction should correlate with high-freq component";
+}

@@ -37,6 +37,15 @@ Eigen::MatrixXcd synchrosqueeze(const Eigen::MatrixXcd& stft, const Eigen::Matri
 Eigen::VectorXd ifsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& window);
 Eigen::VectorXd ifsst(const FsstResult& result, const Eigen::VectorXd& window);
 
+// Inverse FSST with frequency range filtering (MATLAB-compatible)
+// spectrum: Synchrosqueezed spectrum (freq_bins x time_steps)
+// window: Analysis window used in forward transform
+// frequencies: Frequency axis from forward transform
+// freqrange: Frequency range [fmin, fmax] in Hz - only reconstruct this range
+// Returns: Reconstructed signal containing only the specified frequency range
+Eigen::VectorXd ifsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& window,
+                      const Eigen::VectorXd& frequencies, const std::pair<double, double>& freqrange);
+
 }  // namespace ssq
 
 #endif  // SSQ_SSQ_HPP
