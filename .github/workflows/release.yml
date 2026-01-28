@@ -17,6 +17,8 @@ jobs:
             platform: linux-aarch64
           - os: macos-latest
             platform: osx-arm64
+          - os: windows-latest
+            platform: win-64
 
     runs-on: ${{ matrix.os }}
 
