@@ -52,7 +52,7 @@ jobs:
       - uses: prefix-dev/rattler-build-action@v0.2.22
         with:
           upload-channel: ssq
-          upload-packages: packages/**/*.conda
+          upload-packages: packages/**/*.tar.bz2
         env:
           RATTLER_BUILD_PREFIX_DEV_TOKEN: ${{ secrets.PREFIX_DEV_TOKEN }}
 
