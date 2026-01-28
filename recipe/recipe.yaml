@@ -15,12 +15,12 @@ build:
   script:
     - if: unix
       then:
-        - cmake -B build -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+        - cmake -B build -DCMAKE_INSTALL_PREFIX=$PREFIX -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DSSQ_PYTHON_INSTALL_DIR=$SP_DIR -DPython_EXECUTABLE=$PYTHON
         - cmake --build build
         - cmake --install build
     - if: win
       then:
-        - cmake -B build -DCMAKE_INSTALL_PREFIX=%PREFIX% -DBUILD_SHARED_LIBS=ON
+        - cmake -B build -DCMAKE_INSTALL_PREFIX=%PREFIX% -DBUILD_SHARED_LIBS=ON -DSSQ_PYTHON_INSTALL_DIR=%SP_DIR% -DPython_EXECUTABLE=%PYTHON%
         - cmake --build build --config Release
         - cmake --install build --config Release
 

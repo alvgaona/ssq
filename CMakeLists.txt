@@ -69,15 +69,10 @@ if(pybind11_FOUND AND Python_FOUND)
     target_link_libraries(ssq_python PRIVATE ssq_core)
     set_target_properties(ssq_python PROPERTIES OUTPUT_NAME ssq)
 
-    # Get Python site-packages for install
-    execute_process(
-        COMMAND "${Python_EXECUTABLE}" -c "import sysconfig; print(sysconfig.get_path('platlib'))"
-        OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    if(PYTHON_SITE_PACKAGES)
-        install(TARGETS ssq_python LIBRARY DESTINATION "${PYTHON_SITE_PACKAGES}")
-    endif()
+    # Install to site-packages relative to prefix
+    set(SSQ_PYTHON_INSTALL_DIR "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/site-packages"
+        CACHE STRING "Python module install directory (relative to prefix)")
+    install(TARGETS ssq_python LIBRARY DESTINATION "${SSQ_PYTHON_INSTALL_DIR}")
 endif()
 
 # Tests
