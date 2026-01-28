@@ -21,7 +21,7 @@ body = """
             {% if commit.breaking %}[**breaking**] {% endif %}\
             {{ commit.message | upper_first }}\
             {% if commit.remote.pr_number %} ([#{{ commit.remote.pr_number }}](https://github.com/alvgaona/ssq/pull/{{ commit.remote.pr_number }})){% endif %} \
-            ({{ commit.id | truncate(length=7, end="") }}) [![](https://github.com/{{ commit.remote.username }}.png?size=20)](https://github.com/{{ commit.remote.username }})
+            ({{ commit.id | truncate(length=7, end="") }}){% if commit.remote.username %} [![](https://github.com/{{ commit.remote.username }}.png?size=20)](https://github.com/{{ commit.remote.username }}){% endif %}
     {% endfor %}
 {% endfor %}
 """

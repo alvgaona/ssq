@@ -54,6 +54,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          cache: true
+
+      - name: Generate release notes
+        run: pixi run git-cliff --latest --strip header > RELEASE_NOTES.md
 
       - uses: actions/download-artifact@v4
         with:
@@ -70,4 +79,4 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
