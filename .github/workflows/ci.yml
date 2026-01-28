@@ -33,5 +33,10 @@ jobs:
       - name: Build
         run: pixi run build
 
-      - name: Test
+      - name: Test (Unix)
+        if: runner.os != 'Windows'
         run: pixi run test
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        run: ctest --test-dir build --output-on-failure -C Debug
