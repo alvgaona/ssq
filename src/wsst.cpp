@@ -57,17 +57,11 @@ Eigen::MatrixXd compute_wsst_phase_transform(const CwtResult& cwt, double sample
     // Initialize omega with scale frequencies (broadcast)
     Eigen::MatrixXd omega = cwt.frequencies.replicate(1, num_times);
 
-    // Compute instantaneous frequency
-    Eigen::MatrixXd inst_freq = imag_ratio / TWO_PI;
+    // Compute instantaneous frequency and clamp to non-negative
+    Eigen::MatrixXd inst_freq = (imag_ratio / TWO_PI).cwiseMax(0.0);
 
-    // Apply threshold mask and clamp (column-first for cache efficiency)
-    for (Eigen::Index t = 0; t < num_times; ++t) {
-        for (Eigen::Index s = 0; s < num_scales; ++s) {
-            if (mag(s, t) > threshold) {
-                omega(s, t) = std::max(0.0, inst_freq(s, t));
-            }
-        }
-    }
+    // Apply threshold mask: use inst_freq where mag > threshold, else keep omega
+    omega = (mag.array() > threshold).select(inst_freq, omega);
 
     return omega;
 }

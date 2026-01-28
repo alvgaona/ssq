@@ -1,7 +1,5 @@
 #include "ssq/windows.hpp"
 
-#include <cmath>
-
 namespace ssq {
 namespace windows {
 
@@ -27,14 +25,18 @@ Eigen::VectorXd kaiser(Eigen::Index length, double beta) {
     if (length <= 0) return Eigen::VectorXd();
     if (length == 1) return Eigen::VectorXd::Ones(1);
 
-    Eigen::VectorXd w(length);
     const double N = static_cast<double>(length - 1);
     const double i0_beta = bessel_i0(beta);
 
-    for (Eigen::Index n = 0; n < length; ++n) {
-        double ratio = (2.0 * n / N) - 1.0;
-        double arg = beta * std::sqrt(1.0 - ratio * ratio);
-        w(n) = bessel_i0(arg) / i0_beta;
+    // Vectorized ratio computation
+    Eigen::VectorXd n = Eigen::VectorXd::LinSpaced(length, 0.0, N);
+    Eigen::ArrayXd ratio = (2.0 * n.array() / N) - 1.0;
+    Eigen::ArrayXd arg = beta * (1.0 - ratio.square()).sqrt();
+
+    // bessel_i0 must be called element-wise (no vectorized version)
+    Eigen::VectorXd w(length);
+    for (Eigen::Index i = 0; i < length; ++i) {
+        w(i) = bessel_i0(arg(i)) / i0_beta;
     }
 
     return w;
@@ -44,28 +46,18 @@ Eigen::VectorXd hamming(Eigen::Index length) {
     if (length <= 0) return Eigen::VectorXd();
     if (length == 1) return Eigen::VectorXd::Ones(1);
 
-    Eigen::VectorXd w(length);
     const double N = static_cast<double>(length - 1);
-
-    for (Eigen::Index n = 0; n < length; ++n) {
-        w(n) = 0.54 - 0.46 * std::cos(TWO_PI * n / N);
-    }
-
-    return w;
+    Eigen::VectorXd n = Eigen::VectorXd::LinSpaced(length, 0.0, N);
+    return 0.54 - 0.46 * (TWO_PI * n / N).array().cos();
 }
 
 Eigen::VectorXd hann(Eigen::Index length) {
     if (length <= 0) return Eigen::VectorXd();
     if (length == 1) return Eigen::VectorXd::Ones(1);
 
-    Eigen::VectorXd w(length);
     const double N = static_cast<double>(length - 1);
-
-    for (Eigen::Index n = 0; n < length; ++n) {
-        w(n) = 0.5 * (1.0 - std::cos(TWO_PI * n / N));
-    }
-
-    return w;
+    Eigen::VectorXd n = Eigen::VectorXd::LinSpaced(length, 0.0, N);
+    return 0.5 * (1.0 - (TWO_PI * n / N).array().cos());
 }
 
 Eigen::VectorXd gaussian(Eigen::Index length, double sigma) {
@@ -77,15 +69,10 @@ Eigen::VectorXd gaussian(Eigen::Index length, double sigma) {
         sigma = static_cast<double>(length) / 6.0;
     }
 
-    Eigen::VectorXd w(length);
     const double center = static_cast<double>(length - 1) / 2.0;
-
-    for (Eigen::Index n = 0; n < length; ++n) {
-        double x = (n - center) / sigma;
-        w(n) = std::exp(-0.5 * x * x);
-    }
-
-    return w;
+    Eigen::VectorXd n = Eigen::VectorXd::LinSpaced(length, 0.0, static_cast<double>(length - 1));
+    Eigen::ArrayXd x = (n.array() - center) / sigma;
+    return (-0.5 * x.square()).exp();
 }
 
 }  // namespace windows

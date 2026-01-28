@@ -37,18 +37,14 @@ Eigen::MatrixXd compute_phase_transform(const StftResult& stft, double sample_ra
     // Initialize omega with bin frequencies (broadcast)
     Eigen::MatrixXd omega = stft.frequencies.replicate(1, num_times);
 
-    // Compute instantaneous frequency where magnitude is above threshold
-    // inst_freq = bin_freq - Im(ratio) / (2*pi)
+    // Compute instantaneous frequency: inst_freq = bin_freq - Im(ratio) / (2*pi)
     Eigen::MatrixXd inst_freq = omega - imag_ratio / TWO_PI;
 
-    // Apply threshold mask and clamp (column-first for cache efficiency)
-    for (Eigen::Index t = 0; t < num_times; ++t) {
-        for (Eigen::Index k = 0; k < num_freqs; ++k) {
-            if (mag(k, t) > threshold) {
-                omega(k, t) = std::clamp(inst_freq(k, t), 0.0, nyquist);
-            }
-        }
-    }
+    // Clamp instantaneous frequency to [0, nyquist]
+    inst_freq = inst_freq.cwiseMax(0.0).cwiseMin(nyquist);
+
+    // Apply threshold mask: use inst_freq where mag > threshold, else keep omega
+    omega = (mag.array() > threshold).select(inst_freq, omega);
 
     return omega;
 }
