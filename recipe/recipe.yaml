@@ -1,7 +1,7 @@
 schema_version: 1
 
 context:
-  version: "0.1.0"
+  version: ${{ git.latest_tag_version }}
 
 package:
   name: ssq
