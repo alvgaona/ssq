@@ -39,4 +39,4 @@ jobs:
 
       - name: Test (Windows)
         if: runner.os == 'Windows'
-        run: ctest --test-dir build --output-on-failure -C Debug
+        run: pixi run ctest --test-dir build --output-on-failure -C Debug

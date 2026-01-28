@@ -35,7 +35,7 @@ jobs:
 
       - name: Run tests (Windows)
         if: runner.os == 'Windows'
-        run: ctest --test-dir build --output-on-failure -C Debug
+        run: pixi run ctest --test-dir build --output-on-failure -C Debug
 
       - uses: prefix-dev/rattler-build-action@v0.2.22
         with:
