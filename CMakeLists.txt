@@ -12,8 +12,9 @@ pkg_check_modules(FFTW3 REQUIRED fftw3)
 find_package(Eigen3 REQUIRED)
 find_package(OpenMP)
 
-# Option for building tests
+# Options
 option(SSQ_BUILD_TESTS "Build unit tests" OFF)
+option(SSQ_NATIVE_ARCH "Optimize for host CPU (-march=native)" OFF)
 
 # Main library
 add_library(ssq_core STATIC
@@ -36,6 +37,11 @@ target_link_directories(ssq_core PUBLIC ${FFTW3_LIBRARY_DIRS})
 
 if(OpenMP_CXX_FOUND)
     target_link_libraries(ssq_core PUBLIC OpenMP::OpenMP_CXX)
+endif()
+
+# Optional optimization flags
+if(SSQ_NATIVE_ARCH)
+    target_compile_options(ssq_core PRIVATE -march=native)
 endif()
 
 # Python bindings
