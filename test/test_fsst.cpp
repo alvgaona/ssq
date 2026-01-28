@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "ssq/fsst.hpp"
+#include "ssq/windows.hpp"
 
 #include <cmath>
 
@@ -209,4 +210,73 @@ TEST_F(FsstTest, KaiserWindowConfiguration) {
     EXPECT_EQ(result.times.size(), 2000);
     EXPECT_NEAR(result.frequencies(0), 0.0, 1e-10);
     EXPECT_NEAR(result.frequencies(result.frequencies.size() - 1), 500.0, 1e-10);  // Nyquist = 1000/2
+}
+
+TEST_F(FsstTest, InverseReconstruction) {
+    // ifsst should perfectly reconstruct sinusoids
+    Eigen::VectorXd win = ssq::windows::gaussian(window_size);
+    Eigen::VectorXd sig = sine_signal(1000, 50.0, sample_rate);
+
+    auto result = ssq::fsst(sig, sample_rate, win);
+    Eigen::VectorXd reconstructed = ssq::ifsst(result.spectrum, win);
+
+    // Compare in the middle to avoid edge effects
+    Eigen::Index mid_start = sig.size() / 4;
+    Eigen::Index mid_end = 3 * sig.size() / 4;
+
+    for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+        EXPECT_NEAR(reconstructed(i), sig(i), 1e-6)
+            << "Reconstruction mismatch at index " << i;
+    }
+}
+
+TEST_F(FsstTest, InverseReconstructionMultipleFrequencies) {
+    // Test reconstruction with multiple frequency components
+    Eigen::VectorXd win = ssq::windows::hann(window_size);
+    Eigen::Index n = 1000;
+    Eigen::VectorXd sig(n);
+
+    for (Eigen::Index i = 0; i < n; ++i) {
+        double t = static_cast<double>(i) / sample_rate;
+        sig(i) = std::sin(2.0 * PI * 50.0 * t) + 0.5 * std::sin(2.0 * PI * 120.0 * t);
+    }
+
+    auto result = ssq::fsst(sig, sample_rate, win);
+    Eigen::VectorXd reconstructed = ssq::ifsst(result.spectrum, win);
+
+    // Check RMS error in the middle region
+    double error_sum = 0.0;
+    Eigen::Index mid_start = n / 4;
+    Eigen::Index mid_end = 3 * n / 4;
+    Eigen::Index count = mid_end - mid_start;
+
+    for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+        double diff = reconstructed(i) - sig(i);
+        error_sum += diff * diff;
+    }
+
+    double rms_error = std::sqrt(error_sum / count);
+    EXPECT_LT(rms_error, 1e-5) << "RMS reconstruction error should be small";
+}
+
+TEST_F(FsstTest, InverseWithDifferentWindows) {
+    // Test that all window types produce good reconstruction
+    Eigen::VectorXd sig = sine_signal(800, 75.0, sample_rate);
+
+    std::vector<Eigen::VectorXd> windows = {
+        ssq::windows::kaiser(window_size),
+        ssq::windows::hamming(window_size),
+        ssq::windows::hann(window_size),
+        ssq::windows::gaussian(window_size)
+    };
+
+    for (const auto& win : windows) {
+        auto result = ssq::fsst(sig, sample_rate, win);
+        Eigen::VectorXd reconstructed = ssq::ifsst(result.spectrum, win);
+
+        // Check middle region
+        Eigen::Index mid = sig.size() / 2;
+        double error = std::abs(reconstructed(mid) - sig(mid));
+        EXPECT_LT(error, 1e-5) << "Reconstruction should be accurate with any window";
+    }
 }

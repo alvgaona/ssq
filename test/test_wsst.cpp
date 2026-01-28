@@ -144,3 +144,91 @@ TEST_F(WsstTest, NumVoicesParameter) {
     // More voices should give more frequency bins
     EXPECT_GT(result_48.spectrum.rows(), result_16.spectrum.rows());
 }
+
+TEST_F(WsstTest, InverseReconstruction) {
+    // iwsst should reconstruct sinusoids with correct amplitude
+    double test_freq = 100.0;
+    Eigen::VectorXd sig = sine_signal(1000, test_freq, sample_rate);
+
+    auto result = ssq::wsst(sig, sample_rate);
+    Eigen::VectorXd reconstructed = ssq::iwsst(result.spectrum, result.frequencies);
+
+    // Check in the middle to avoid edge effects
+    Eigen::Index mid_start = sig.size() / 4;
+    Eigen::Index mid_end = 3 * sig.size() / 4;
+
+    // Compute RMS of signal and reconstruction
+    double sig_rms = 0.0, rec_rms = 0.0;
+    for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+        sig_rms += sig(i) * sig(i);
+        rec_rms += reconstructed(i) * reconstructed(i);
+    }
+    sig_rms = std::sqrt(sig_rms / (mid_end - mid_start));
+    rec_rms = std::sqrt(rec_rms / (mid_end - mid_start));
+
+    // Scale should be close to 1.0
+    double scale = sig_rms / rec_rms;
+    EXPECT_NEAR(scale, 1.0, 0.05) << "Reconstruction amplitude should match original";
+}
+
+TEST_F(WsstTest, InverseCorrelation) {
+    // iwsst output should be highly correlated with input
+    double test_freq = 75.0;
+    Eigen::VectorXd sig = sine_signal(1000, test_freq, sample_rate);
+
+    auto result = ssq::wsst(sig, sample_rate);
+    Eigen::VectorXd reconstructed = ssq::iwsst(result.spectrum, result.frequencies);
+
+    // Compute correlation in middle region
+    Eigen::Index mid_start = sig.size() / 4;
+    Eigen::Index mid_end = 3 * sig.size() / 4;
+    Eigen::Index n = mid_end - mid_start;
+
+    double mean_sig = 0.0, mean_rec = 0.0;
+    for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+        mean_sig += sig(i);
+        mean_rec += reconstructed(i);
+    }
+    mean_sig /= n;
+    mean_rec /= n;
+
+    double cov = 0.0, var_sig = 0.0, var_rec = 0.0;
+    for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+        double ds = sig(i) - mean_sig;
+        double dr = reconstructed(i) - mean_rec;
+        cov += ds * dr;
+        var_sig += ds * ds;
+        var_rec += dr * dr;
+    }
+
+    double corr = cov / std::sqrt(var_sig * var_rec);
+    EXPECT_GT(corr, 0.99) << "Reconstruction should be highly correlated with original";
+}
+
+TEST_F(WsstTest, InverseFrequencyIndependence) {
+    // Reconstruction quality should be consistent across frequencies
+    std::vector<double> test_freqs = {25.0, 50.0, 100.0, 200.0};
+
+    for (double freq : test_freqs) {
+        Eigen::VectorXd sig = sine_signal(1000, freq, sample_rate);
+
+        auto result = ssq::wsst(sig, sample_rate);
+        Eigen::VectorXd reconstructed = ssq::iwsst(result.spectrum, result.frequencies);
+
+        // Check amplitude in middle region
+        Eigen::Index mid_start = sig.size() / 4;
+        Eigen::Index mid_end = 3 * sig.size() / 4;
+
+        double sig_rms = 0.0, rec_rms = 0.0;
+        for (Eigen::Index i = mid_start; i < mid_end; ++i) {
+            sig_rms += sig(i) * sig(i);
+            rec_rms += reconstructed(i) * reconstructed(i);
+        }
+        sig_rms = std::sqrt(sig_rms / (mid_end - mid_start));
+        rec_rms = std::sqrt(rec_rms / (mid_end - mid_start));
+
+        double scale = sig_rms / rec_rms;
+        EXPECT_NEAR(scale, 1.0, 0.05)
+            << "Reconstruction scale should be ~1.0 at " << freq << " Hz";
+    }
+}

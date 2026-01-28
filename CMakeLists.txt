@@ -79,4 +79,8 @@ if(SSQ_BUILD_TESTS)
     add_executable(test_wsst test/test_wsst.cpp)
     target_link_libraries(test_wsst PRIVATE ssq_core GTest::gtest GTest::gtest_main)
     add_test(NAME test_wsst COMMAND test_wsst)
+
+    add_executable(test_windows test/test_windows.cpp)
+    target_link_libraries(test_windows PRIVATE ssq_core GTest::gtest GTest::gtest_main)
+    add_test(NAME test_windows COMMAND test_windows)
 endif()
