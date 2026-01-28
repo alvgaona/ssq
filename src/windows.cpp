@@ -1,12 +1,11 @@
 #include "ssq/windows.hpp"
 
+#include "ssq/constants.hpp"
+
 namespace ssq {
 namespace windows {
 
 namespace {
-const double PI = 3.14159265358979323846;
-const double TWO_PI = 2.0 * PI;
-
 // Modified Bessel function I0 (series expansion)
 double bessel_i0(double x) {
     double sum = 1.0;

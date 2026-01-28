@@ -1,13 +1,13 @@
 #include "ssq/wsst.hpp"
 
+#include "ssq/constants.hpp"
+
 #include <algorithm>
 #include <cmath>
 
 namespace ssq {
 
 namespace {
-const double PI = 3.14159265358979323846;
-const double TWO_PI = 2.0 * PI;
 
 // Find nearest frequency bin using binary search (O(log n) instead of O(n))
 // Assumes frequencies are sorted in ascending order
@@ -27,6 +27,41 @@ Eigen::Index find_nearest_bin(const Eigen::VectorXd& frequencies, double target)
         return idx - 1;
     }
     return idx;
+}
+
+// Compute frequency spacing for integration (central differences)
+Eigen::VectorXd compute_df(const Eigen::VectorXd& frequencies) {
+    const Eigen::Index n = frequencies.size();
+    Eigen::VectorXd df(n);
+    df(0) = frequencies(1) - frequencies(0);
+    for (Eigen::Index k = 1; k < n - 1; ++k) {
+        df(k) = (frequencies(k + 1) - frequencies(k - 1)) / 2.0;
+    }
+    df(n - 1) = frequencies(n - 1) - frequencies(n - 2);
+    return df;
+}
+
+// Internal implementation for inverse WSST with bin range
+Eigen::VectorXd iwsst_impl(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& frequencies,
+                           const Eigen::VectorXd& df, Eigen::Index k_min, Eigen::Index k_max) {
+    const Eigen::Index num_times = spectrum.cols();
+
+    // Weighted sum with scale-frequency correction: ∑_k S(k, t) * df_k / sqrt(f_k)
+    Eigen::VectorXd result(num_times);
+    for (Eigen::Index t = 0; t < num_times; ++t) {
+        std::complex<double> sum = 0.0;
+        for (Eigen::Index k = k_min; k <= k_max; ++k) {
+            double weight = df(k) / std::sqrt(frequencies(k));
+            sum += spectrum(k, t) * weight;
+        }
+        result(t) = sum.real();
+    }
+
+    // Normalization constant for Morlet wavelet
+    // For omega0=6, the reconstruction normalization is omega0 + sqrt(pi)/4
+    constexpr double omega0 = 6.0;
+    double norm = omega0 + std::sqrt(PI) / 4.0;
+    return result * norm;
 }
 }  // namespace
 
@@ -125,48 +160,13 @@ WsstResult wsst(const Eigen::VectorXd& signal, double sample_rate, WaveletType w
 }
 
 Eigen::VectorXd iwsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& frequencies) {
-    // Inverse WSST: reconstruct signal from synchrosqueezed spectrum
-    //
-    // For wavelet synchrosqueezing, reconstruction integrates over scale:
-    //   x(t) = C_psi^(-1) * Re(∫ W(a,t) * da/a)
-    //
-    // Since the CWT wavelet is normalized by sqrt(scale) and scale ∝ 1/f,
-    // the integration measure da/a transforms to df/sqrt(f) when converting
-    // to frequency domain. Combined with df spacing:
-    //   x(t) = C * Re(∑_k S(k,t) * df_k / sqrt(f_k))
-
     const Eigen::Index num_freqs = spectrum.rows();
-    const Eigen::Index num_times = spectrum.cols();
-
     if (num_freqs < 2) {
         return spectrum.colwise().sum().real().transpose();
     }
 
-    // Compute frequency spacing (logarithmic spacing)
-    Eigen::VectorXd df(num_freqs);
-    df(0) = frequencies(1) - frequencies(0);
-    for (Eigen::Index k = 1; k < num_freqs - 1; ++k) {
-        df(k) = (frequencies(k + 1) - frequencies(k - 1)) / 2.0;
-    }
-    df(num_freqs - 1) = frequencies(num_freqs - 1) - frequencies(num_freqs - 2);
-
-    // Weighted sum with scale-frequency correction: ∑_k S(k, t) * df_k / sqrt(f_k)
-    Eigen::VectorXd result(num_times);
-    for (Eigen::Index t = 0; t < num_times; ++t) {
-        std::complex<double> sum = 0.0;
-        for (Eigen::Index k = 0; k < num_freqs; ++k) {
-            double weight = df(k) / std::sqrt(frequencies(k));
-            sum += spectrum(k, t) * weight;
-        }
-        result(t) = sum.real();
-    }
-
-    // Normalization constant for Morlet wavelet
-    // For omega0=6, the reconstruction normalization is omega0 + sqrt(pi)/4
-    // This accounts for the wavelet L2 normalization and scale-frequency Jacobian
-    constexpr double omega0 = 6.0;
-    double norm = omega0 + std::sqrt(PI) / 4.0;
-    return result * norm;
+    Eigen::VectorXd df = compute_df(frequencies);
+    return iwsst_impl(spectrum, frequencies, df, 0, num_freqs - 1);
 }
 
 Eigen::VectorXd iwsst(const WsstResult& result) {
@@ -175,53 +175,34 @@ Eigen::VectorXd iwsst(const WsstResult& result) {
 
 Eigen::VectorXd iwsst(const Eigen::MatrixXcd& spectrum, const Eigen::VectorXd& frequencies,
                       const std::pair<double, double>& freqrange) {
-    // Inverse WSST with frequency range filtering
-    // Only integrate over the specified frequency range
-
-    const double freq_min = freqrange.first;
-    const double freq_max = freqrange.second;
-
     const Eigen::Index num_freqs = spectrum.rows();
     const Eigen::Index num_times = spectrum.cols();
 
     if (num_freqs < 2) {
-        // If only one frequency, just return sum if it's in range
+        // Edge case: single frequency bin
         Eigen::VectorXd result(num_times);
+        bool in_range = frequencies(0) >= freqrange.first && frequencies(0) <= freqrange.second;
         for (Eigen::Index t = 0; t < num_times; ++t) {
-            if (frequencies(0) >= freq_min && frequencies(0) <= freq_max) {
-                result(t) = spectrum(0, t).real();
-            } else {
-                result(t) = 0.0;
-            }
+            result(t) = in_range ? spectrum(0, t).real() : 0.0;
         }
         return result;
     }
 
-    // Compute frequency spacing (logarithmic spacing)
-    Eigen::VectorXd df(num_freqs);
-    df(0) = frequencies(1) - frequencies(0);
-    for (Eigen::Index k = 1; k < num_freqs - 1; ++k) {
-        df(k) = (frequencies(k + 1) - frequencies(k - 1)) / 2.0;
-    }
-    df(num_freqs - 1) = frequencies(num_freqs - 1) - frequencies(num_freqs - 2);
+    // Find bin indices for frequency range using binary search
+    const double* freq_data = frequencies.data();
+    auto it_min = std::lower_bound(freq_data, freq_data + num_freqs, freqrange.first);
+    auto it_max = std::upper_bound(freq_data, freq_data + num_freqs, freqrange.second);
+    Eigen::Index k_min = static_cast<Eigen::Index>(it_min - freq_data);
+    Eigen::Index k_max = static_cast<Eigen::Index>(it_max - freq_data);
+    if (k_max > 0) --k_max;
 
-    // Weighted sum with scale-frequency correction, filtered by frequency range
-    Eigen::VectorXd result(num_times);
-    for (Eigen::Index t = 0; t < num_times; ++t) {
-        std::complex<double> sum = 0.0;
-        for (Eigen::Index k = 0; k < num_freqs; ++k) {
-            double f = frequencies(k);
-            if (f < freq_min || f > freq_max) continue;
-            double weight = df(k) / std::sqrt(f);
-            sum += spectrum(k, t) * weight;
-        }
-        result(t) = sum.real();
+    // Handle empty range
+    if (k_min > k_max) {
+        return Eigen::VectorXd::Zero(num_times);
     }
 
-    // Normalization constant for Morlet wavelet
-    constexpr double omega0 = 6.0;
-    double norm = omega0 + std::sqrt(PI) / 4.0;
-    return result * norm;
+    Eigen::VectorXd df = compute_df(frequencies);
+    return iwsst_impl(spectrum, frequencies, df, k_min, k_max);
 }
 
 }  // namespace ssq
