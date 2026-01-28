@@ -33,9 +33,12 @@ jobs:
         if: runner.os != 'Windows'
         run: pixi run test
 
-      - name: Run tests (Windows)
+      - name: Build and test (Windows)
         if: runner.os == 'Windows'
-        run: pixi run ctest --test-dir build --output-on-failure -C Debug
+        run: |
+          pixi run cmake -B build -DSSQ_BUILD_TESTS=ON
+          pixi run cmake --build build --config Release
+          pixi run ctest --test-dir build --output-on-failure -C Release
 
       - uses: prefix-dev/rattler-build-action@v0.2.22
         with:
