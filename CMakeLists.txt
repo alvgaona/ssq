@@ -14,7 +14,8 @@ find_package(OpenMP)
 
 # Options
 option(SSQ_BUILD_TESTS "Build unit tests" OFF)
-option(SSQ_NATIVE_ARCH "Optimize for host CPU (-march=native)" OFF)
+option(SSQ_NATIVE_ARCH "Optimize for host CPU (-march=native on GCC/Clang)" OFF)
+set(SSQ_MSVC_ARCH "AVX2" CACHE STRING "MSVC architecture (AVX, AVX2, AVX512)")
 
 # Main library
 add_library(ssq_core STATIC
@@ -42,7 +43,11 @@ endif()
 
 # Optional optimization flags
 if(SSQ_NATIVE_ARCH)
-    target_compile_options(ssq_core PRIVATE -march=native)
+    if(MSVC)
+        target_compile_options(ssq_core PRIVATE /arch:${SSQ_MSVC_ARCH})
+    else()
+        target_compile_options(ssq_core PRIVATE -march=native)
+    endif()
 endif()
 
 
