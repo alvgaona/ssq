@@ -30,8 +30,15 @@ jobs:
         with:
           cache: true
 
-      - name: Build
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
         run: pixi run build
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pixi run cmake -B build -DSSQ_BUILD_TESTS=ON
+          pixi run cmake --build build --config Release
 
       - name: Test (Unix)
         if: runner.os != 'Windows'
@@ -39,4 +46,4 @@ jobs:
 
       - name: Test (Windows)
         if: runner.os == 'Windows'
-        run: pixi run ctest --test-dir build --output-on-failure -C Debug
+        run: pixi run ctest --test-dir build --output-on-failure -C Release
