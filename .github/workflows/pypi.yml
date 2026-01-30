@@ -22,6 +22,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: yum install -y fftw-devel eigen3-devel pkgconfig || apt-get install -y libfftw3-dev libeigen3-dev pkg-config
           CIBW_BEFORE_ALL_MACOS: brew install fftw eigen
           CIBW_BEFORE_ALL_WINDOWS: choco install pkgconfiglite && vcpkg install fftw3 eigen3
+          CIBW_ENVIRONMENT_MACOS: MACOSX_DEPLOYMENT_TARGET=14.0
           CIBW_ENVIRONMENT_WINDOWS: CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
 
       - uses: actions/upload-artifact@v4
