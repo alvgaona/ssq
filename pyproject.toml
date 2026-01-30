@@ -1,0 +1,37 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.11"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "ssq"
+dynamic = ["version"]
+description = "Synchrosqueezed Transform library (FSST and WSST)"
+readme = "README.md"
+license = "LGPL-3.0-or-later"
+requires-python = ">=3.9"
+authors = [{ name = "Alvaro Gaona", email = "alvgaona@gmail.com" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: C++",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Homepage = "https://github.com/alvgaona/ssq"
+Repository = "https://github.com/alvgaona/ssq"
+
+[tool.scikit-build]
+wheel.packages = []
+cmake.build-type = "Release"
+
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.regex"
+input = "CMakeLists.txt"
+regex = "project\\(ssq VERSION (?P<value>[0-9.]+)"
