@@ -109,7 +109,7 @@ jobs:
         env:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_SKIP: "*-musllinux_*"
-          CIBW_BEFORE_ALL_LINUX: yum install -y fftw-devel eigen3-devel || apt-get install -y libfftw3-dev libeigen3-dev
+          CIBW_BEFORE_ALL_LINUX: yum install -y fftw-devel eigen3-devel pkgconfig || apt-get install -y libfftw3-dev libeigen3-dev pkg-config
           CIBW_BEFORE_ALL_MACOS: brew install fftw eigen
           CIBW_BEFORE_ALL_WINDOWS: choco install pkgconfiglite && vcpkg install fftw3 eigen3
           CIBW_ENVIRONMENT_WINDOWS: CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
