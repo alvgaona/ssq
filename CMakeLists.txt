@@ -62,16 +62,24 @@ install(TARGETS ssq_core LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 install(DIRECTORY include/ssq DESTINATION include)
 
 # Python bindings
-find_package(Python COMPONENTS Interpreter Development QUIET)
-find_package(pybind11 CONFIG)
-if(pybind11_FOUND AND Python_FOUND)
+if(DEFINED SKBUILD)
+    # Building with scikit-build-core - Python and pybind11 are required
+    find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+    find_package(pybind11 CONFIG REQUIRED)
+else()
+    # Standalone build - Python bindings are optional
+    find_package(Python COMPONENTS Interpreter Development QUIET)
+    find_package(pybind11 CONFIG)
+endif()
+
+if(pybind11_FOUND)
     pybind11_add_module(ssq_python python/bindings.cpp)
     target_link_libraries(ssq_python PRIVATE ssq_core)
     set_target_properties(ssq_python PROPERTIES OUTPUT_NAME ssq)
 
-    # Install location: use scikit-build-core's SKBUILD_PLATLIB_DIR if available
-    if(DEFINED SKBUILD_PLATLIB_DIR)
-        install(TARGETS ssq_python LIBRARY DESTINATION "${SKBUILD_PLATLIB_DIR}")
+    if(DEFINED SKBUILD)
+        # scikit-build-core handles wheel layout - install to root
+        install(TARGETS ssq_python LIBRARY DESTINATION .)
     else()
         set(SSQ_PYTHON_INSTALL_DIR "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/site-packages"
             CACHE STRING "Python module install directory (relative to prefix)")
