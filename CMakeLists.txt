@@ -69,10 +69,14 @@ if(pybind11_FOUND AND Python_FOUND)
     target_link_libraries(ssq_python PRIVATE ssq_core)
     set_target_properties(ssq_python PROPERTIES OUTPUT_NAME ssq)
 
-    # Install to site-packages relative to prefix
-    set(SSQ_PYTHON_INSTALL_DIR "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/site-packages"
-        CACHE STRING "Python module install directory (relative to prefix)")
-    install(TARGETS ssq_python LIBRARY DESTINATION "${SSQ_PYTHON_INSTALL_DIR}")
+    # Install location: use scikit-build-core's SKBUILD_PLATLIB_DIR if available
+    if(DEFINED SKBUILD_PLATLIB_DIR)
+        install(TARGETS ssq_python LIBRARY DESTINATION "${SKBUILD_PLATLIB_DIR}")
+    else()
+        set(SSQ_PYTHON_INSTALL_DIR "lib/python${Python_VERSION_MAJOR}.${Python_VERSION_MINOR}/site-packages"
+            CACHE STRING "Python module install directory (relative to prefix)")
+        install(TARGETS ssq_python LIBRARY DESTINATION "${SSQ_PYTHON_INSTALL_DIR}")
+    endif()
 endif()
 
 # Tests
