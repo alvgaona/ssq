@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core>=0.10", "pybind11>=2.11", "cmake>=3.18", "ninja"]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.11"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -12,7 +12,6 @@ requires-python = ">=3.9"
 authors = [{ name = "Alvaro Gaona", email = "alvgaona@gmail.com" }]
 classifiers = [
     "Development Status :: 4 - Beta",
-    "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
